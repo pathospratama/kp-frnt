@@ -4,7 +4,15 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import type { DriveAccount, FileItem, Filters, PoolInfo, User, ViewKey } from "./types";
+import type {
+  DriveAccount,
+  FileItem,
+  Filters,
+  PoolInfo,
+  RoleKey,
+  User,
+  ViewKey,
+} from "./types";
 import * as authApi from "@/lib/api/auth";
 import * as filesApi from "@/lib/api/files";
 import * as drivesApi from "@/lib/api/drives";
@@ -43,6 +51,8 @@ interface YuditState {
   // views
   currentView: ViewKey;
   sidebarOpen: boolean;
+  role: RoleKey;
+  arsipTab: "daftar" | "bulanan";
 
   // data
   drives: DriveAccount[];
@@ -91,6 +101,8 @@ interface YuditState {
   // views
   setView: (v: ViewKey) => void;
   setSidebarOpen: (open: boolean) => void;
+  setRole: (r: RoleKey) => void;
+  setArsipTab: (t: "daftar" | "bulanan") => void;
 
   // data fetch
   fetchFiles: (params?: filesApi.FileListParams) => Promise<void>;
@@ -160,8 +172,10 @@ export const useYudit = create<YuditState>()(
       user: null,
       authLoading: false,
 
-      currentView: "files",
+      currentView: "arsip",
       sidebarOpen: false,
+      role: "pegawai",
+      arsipTab: "daftar",
 
       drives: [],
       pool: EMPTY_POOL,
@@ -202,7 +216,7 @@ export const useYudit = create<YuditState>()(
       login: async (email, password) => {
         set({ authLoading: true });
         try {
-          const res = await authApi.login({ email, password });
+          const res = await authApi.login({ email: email.trim(), password });
           setToken(res.access_token);
           setStoredUser(res.user);
           set({ isAuthenticated: true, user: res.user, authLoading: false });
@@ -218,7 +232,11 @@ export const useYudit = create<YuditState>()(
       register: async (email, username, password) => {
         set({ authLoading: true });
         try {
-          const res = await authApi.register({ email, username, password });
+          const res = await authApi.register({
+            email: email.trim(),
+            username: username.trim(),
+            password,
+          });
           setToken(res.access_token);
           setStoredUser(res.user);
           set({ isAuthenticated: true, user: res.user, authLoading: false });
@@ -239,7 +257,8 @@ export const useYudit = create<YuditState>()(
         set({
           isAuthenticated: false,
           user: null,
-          currentView: "files",
+          currentView: "arsip",
+          role: "pegawai",
           previewFileId: null,
           shareFileId: null,
           files: [],
@@ -256,7 +275,7 @@ export const useYudit = create<YuditState>()(
       // =====================================================
       setView: (v) => {
         set({ currentView: v, sidebarOpen: false });
-        if (v === "files") {
+        if (v === "arsip" || v === "ringkasan") {
           const { filters, currentCategory, searchQuery } = get();
           get().fetchFiles({
             category: currentCategory !== "all" ? currentCategory : undefined,
@@ -264,12 +283,17 @@ export const useYudit = create<YuditState>()(
             ...filters,
           });
         }
-        if (v === "drives") get().fetchDrives();
-        if (v === "monthly") get().fetchFiles();
-        if (v === "stats") get().fetchFiles();
+        if (v === "penyimpanan") get().fetchDrives();
       },
 
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
+
+      setRole: (r) => {
+        // Pindah ke halaman utama peran yang dipilih
+        set({ role: r, currentView: r === "admin" ? "ringkasan" : "arsip" });
+      },
+
+      setArsipTab: (t) => set({ arsipTab: t }),
 
       // =====================================================
       // DATA FETCH
@@ -623,6 +647,7 @@ export const useYudit = create<YuditState>()(
       name: "yudit-cloud-store",
       partialize: (s) => ({
         currentView: s.currentView,
+        role: s.role,
         filters: s.filters,
         expandedMonthly: s.expandedMonthly,
       }),

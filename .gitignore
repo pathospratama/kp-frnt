@@ -65,3 +65,10 @@ server.log
 # PRISMA (kalau tidak dipakai di frontend)
 # =====================================================
 /prisma/migrations
+
+# =====================================================
+# AGENT TOOLING (lokal saja, jangan commit)
+# =====================================================
+.agents/
+skills-lock.json
+AGENTS.md
