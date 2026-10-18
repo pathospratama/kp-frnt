@@ -59,20 +59,6 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns,
   },
-
-  // Dev-only proxy agar request API same-origin (bebas CORS).
-  // Aktif saat NEXT_PUBLIC_USE_PROXY=true (lihat .env.local).
-  // Production (Vercel) tetap langsung ke backend (CORS sudah mengizinkan).
-  async rewrites() {
-    if (process.env.NEXT_PUBLIC_USE_PROXY !== "true") return [];
-    if (!backendUrl) return [];
-    return [
-      {
-        source: "/api/be/:path*",
-        destination: `${backendUrl}/:path*`,
-      },
-    ];
-  },
 };
 
 export default nextConfig;
