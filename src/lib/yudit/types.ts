@@ -1,5 +1,16 @@
 // src/lib/yudit/types.ts
-export type ViewKey = "files" | "monthly" | "stats" | "drives";
+export type ViewKey =
+  | "arsip"
+  | "ringkasan"
+  | "unggah"
+  | "aktivitas"
+  | "penyimpanan"
+  | "profil";
+
+/** Peran tampilan (level UI).
+ *  Backend belum menyediakan field role — hak akses final WAJIB diperiksa
+ *  backend. Switch ini hanya mengatur navigasi & penyembunyian aksi di UI. */
+export type RoleKey = "pegawai" | "admin";
 
 export interface User {
   id: string;

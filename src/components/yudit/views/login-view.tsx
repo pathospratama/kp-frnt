@@ -1,11 +1,19 @@
-// src/components/yudit/views/login-view.tsx
+// Login internal: Arsip Digital, Bagian Persidangan DPRD Kabupaten Kuningan.
+// Tab Daftar dipertahankan (backend mendukung /auth/register, akun internal).
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Cloud, Mail, Lock, User as UserIcon, ArrowRight, Loader2 } from "lucide-react";
+import { Archive, Mail, Lock, User as UserIcon, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
 import { useYudit } from "@/lib/yudit/store";
+import { ApiError } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
+
+function toFormError(e: unknown, fallback: string): string {
+  // Tampilkan pesan asli backend agar tidak menyesatkan (mis. bedakan
+  // "email sudah terdaftar" vs error server/validasi lainnya).
+  if (e instanceof ApiError && e.detail) return e.detail;
+  return fallback;
+}
 
 type Tab = "login" | "register";
 
@@ -14,7 +22,9 @@ export function LoginView() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const login = useYudit((s) => s.login);
   const register = useYudit((s) => s.register);
@@ -23,10 +33,12 @@ export function LoginView() {
     e.preventDefault();
     if (!email || !password) return;
     setLoading(true);
+    setFormError(null);
     try {
       await login(email, password);
-    } catch {
-      // error sudah di-toast
+    } catch (e) {
+      // Pesan generik tanpa membocorkan detail keamanan
+      setFormError("Email atau password salah. Periksa kembali dan coba lagi.");
     } finally {
       setLoading(false);
     }
@@ -36,89 +48,63 @@ export function LoginView() {
     e.preventDefault();
     if (!email || !password || !username) return;
     setLoading(true);
+    setFormError(null);
     try {
       await register(email, username, password);
-    } catch {
-      // error sudah di-toast
+    } catch (err) {
+      setFormError(toFormError(err, "Pendaftaran gagal. Silakan coba lagi."));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="yudit-ambient relative grid min-h-screen place-items-center overflow-hidden p-5">
-      <div
-        className="pointer-events-none absolute -left-20 top-10 h-72 w-72 rounded-full opacity-30 blur-3xl"
-        style={{ background: "radial-gradient(circle, var(--y-primary), transparent 70%)" }}
-      />
-      <div
-        className="pointer-events-none absolute -right-20 bottom-10 h-72 w-72 rounded-full opacity-25 blur-3xl"
-        style={{ background: "radial-gradient(circle, var(--y-accent), transparent 70%)" }}
-      />
-
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="y-glass-strong y-glow-soft relative z-10 w-full max-w-[420px] rounded-3xl border border-[var(--y-border)] p-8"
-      >
-        <div className="mb-6 flex flex-col items-center">
-          <motion.div
-            initial={{ scale: 0.8, rotate: -8 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.1 }}
-            className="y-gradient-brand y-glow-primary mb-4 grid h-16 w-16 place-items-center rounded-2xl"
-          >
-            <Cloud size={32} className="text-white" fill="currentColor" />
-          </motion.div>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--y-text)]">
-            Yudit<span className="y-gradient-text">Cloud</span>
+    <div className="yudit-ambient relative grid min-h-screen place-items-center p-5">
+      <div className="relative z-10 w-full max-w-[420px]">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <div className="mb-4 grid h-14 w-14 place-items-center rounded-xl bg-[var(--y-primary)]">
+            <Archive size={28} className="text-white" />
+          </div>
+          <h1 className="text-balance text-2xl font-bold tracking-tight text-[var(--y-text)]">
+            Arsip Digital
           </h1>
-          <p className="mt-1.5 text-center text-[13px] text-[var(--y-text-dim)]">
-            Satu cloud virtual, banyak Google Drive di belakangnya
+          <p className="mt-1 text-[13px] text-[var(--y-text-dim)]">
+            Bagian Persidangan DPRD Kabupaten Kuningan
           </p>
         </div>
 
-        <div className="mb-6 flex gap-1 rounded-xl bg-[var(--y-bg)] p-1">
-          {(["login", "register"] as Tab[]).map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className="relative flex-1 rounded-lg px-4 py-2 text-[13px] font-semibold transition-colors"
-              style={{ color: tab === t ? "var(--y-text)" : "var(--y-text-dim)" }}
-            >
-              {tab === t && (
-                <motion.div
-                  layoutId="auth-tab"
-                  className="absolute inset-0 rounded-lg bg-[var(--y-bg-elev)] shadow-sm"
-                  style={{ border: "1px solid var(--y-border-soft)" }}
-                  transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                />
-              )}
-              <span className="relative z-10">
+        <div className="rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-6 sm:p-8">
+          <div className="mb-6 grid grid-cols-2 gap-1 rounded-lg bg-[var(--y-bg-elev-2)] p-1" role="tablist" aria-label="Mode autentikasi">
+            {(["login", "register"] as Tab[]).map((t) => (
+              <button
+                key={t}
+                role="tab"
+                aria-selected={tab === t}
+                type="button"
+                onClick={() => { setTab(t); setFormError(null); }}
+                className={cn(
+                  "y-focus h-9 rounded-md text-[13px] font-semibold",
+                  tab === t ? "bg-[var(--y-bg-elev)] text-[var(--y-text)] shadow-sm" : "text-[var(--y-text-dim)] hover:text-[var(--y-text)]",
+                )}
+              >
                 {t === "login" ? "Masuk" : "Daftar"}
-              </span>
-            </button>
-          ))}
-        </div>
+              </button>
+            ))}
+          </div>
 
-        <AnimatePresence mode="wait">
+          {formError && (
+            <p className="mb-4 rounded-lg bg-red-50 px-3.5 py-2.5 text-[13px] leading-relaxed text-[var(--y-danger)]" role="alert">
+              {formError}
+            </p>
+          )}
+
           {tab === "login" ? (
-            <motion.form
-              key="login"
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 8 }}
-              transition={{ duration: 0.2 }}
-              onSubmit={handleLogin}
-              className="space-y-4"
-            >
+            <form onSubmit={handleLogin} className="space-y-4" noValidate={false}>
               <Field
                 icon={<Mail size={16} />}
                 label="Email"
                 type="email"
-                placeholder="kamu@example.com"
+                placeholder="nama@contoh.go.id"
                 value={email}
                 onChange={setEmail}
                 autoComplete="email"
@@ -126,29 +112,32 @@ export function LoginView() {
               <Field
                 icon={<Lock size={16} />}
                 label="Password"
-                type="password"
-                placeholder="••••••••"
+                type={showPassword ? "text" : "password"}
+                placeholder="Masukkan password"
                 value={password}
                 onChange={setPassword}
                 autoComplete="current-password"
+                trailing={
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                    aria-pressed={showPassword}
+                    className="y-focus grid h-8 w-8 place-items-center rounded-md text-[var(--y-text-mute)] hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)]"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                }
               />
               <SubmitButton label="Masuk" loading={loading} />
-            </motion.form>
+            </form>
           ) : (
-            <motion.form
-              key="register"
-              initial={{ opacity: 0, x: 8 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -8 }}
-              transition={{ duration: 0.2 }}
-              onSubmit={handleRegister}
-              className="space-y-4"
-            >
+            <form onSubmit={handleRegister} className="space-y-4">
               <Field
                 icon={<UserIcon size={16} />}
-                label="Username"
+                label="Nama pengguna"
                 type="text"
-                placeholder="username"
+                placeholder="Nama lengkap atau username"
                 value={username}
                 onChange={setUsername}
                 autoComplete="username"
@@ -157,7 +146,7 @@ export function LoginView() {
                 icon={<Mail size={16} />}
                 label="Email"
                 type="email"
-                placeholder="kamu@example.com"
+                placeholder="nama@contoh.go.id"
                 value={email}
                 onChange={setEmail}
                 autoComplete="email"
@@ -165,17 +154,36 @@ export function LoginView() {
               <Field
                 icon={<Lock size={16} />}
                 label="Password"
-                type="password"
-                placeholder="min 6 karakter"
+                type={showPassword ? "text" : "password"}
+                placeholder="Minimal 6 karakter"
                 value={password}
                 onChange={setPassword}
                 autoComplete="new-password"
+                minLength={6}
+                trailing={
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                    aria-pressed={showPassword}
+                    className="y-focus grid h-8 w-8 place-items-center rounded-md text-[var(--y-text-mute)] hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)]"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                }
               />
-              <SubmitButton label="Daftar" loading={loading} />
-            </motion.form>
+              <SubmitButton label="Buat akun" loading={loading} />
+              <p className="text-xs leading-relaxed text-[var(--y-text-mute)]">
+                Akun hanya untuk pegawai internal. Pembuatan akun tercatat oleh sistem.
+              </p>
+            </form>
           )}
-        </AnimatePresence>
-      </motion.div>
+        </div>
+
+        <p className="mt-5 text-center text-xs text-[var(--y-text-mute)]">
+          Dokumen internal · Bukan untuk publikasi
+        </p>
+      </div>
     </div>
   );
 }
@@ -188,6 +196,8 @@ function Field({
   value,
   onChange,
   autoComplete,
+  minLength,
+  trailing,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -196,6 +206,8 @@ function Field({
   value: string;
   onChange: (v: string) => void;
   autoComplete?: string;
+  minLength?: number;
+  trailing?: React.ReactNode;
 }) {
   return (
     <div>
@@ -203,7 +215,7 @@ function Field({
         {label}
       </label>
       <div className="group relative">
-        <div className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--y-text-mute)] transition-colors group-focus-within:text-[var(--y-primary)]">
+        <div className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--y-text-mute)]">
           {icon}
         </div>
         <input
@@ -212,9 +224,11 @@ function Field({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           required
+          minLength={minLength}
           autoComplete={autoComplete}
-          className="y-focus h-11 w-full rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] pl-10 pr-4 text-sm text-[var(--y-text)] placeholder:text-[var(--y-text-mute)] transition-all"
+          className="y-focus h-11 w-full rounded-lg border border-[var(--y-border)] bg-[var(--y-bg-elev)] pl-10 pr-11 text-sm text-[var(--y-text)] placeholder:text-[var(--y-text-mute)]"
         />
+        {trailing && <div className="absolute right-1.5 top-1/2 -translate-y-1/2">{trailing}</div>}
       </div>
     </div>
   );
@@ -225,21 +239,14 @@ function SubmitButton({ label, loading }: { label: string; loading: boolean }) {
     <button
       type="submit"
       disabled={loading}
-      className={cn(
-        "y-gradient-brand y-glow-primary group relative flex h-11 w-full items-center justify-center gap-2 overflow-hidden rounded-xl text-sm font-semibold text-white transition-all",
-        "hover:-translate-y-0.5 disabled:opacity-70 disabled:hover:translate-y-0",
-      )}
+      className="y-focus flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--y-primary)] text-sm font-semibold text-white hover:bg-[var(--y-primary-hover)] disabled:opacity-70"
     >
       {loading ? (
-        <Loader2 size={16} className="animate-spin" />
+        <Loader2 size={16} className="animate-spin" aria-label="Memproses" />
       ) : (
         <>
-          <span className="relative z-10">{label}</span>
-          <ArrowRight
-            size={16}
-            className="relative z-10 transition-transform group-hover:translate-x-0.5"
-          />
-          <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+          <span>{label}</span>
+          <ArrowRight size={16} />
         </>
       )}
     </button>
