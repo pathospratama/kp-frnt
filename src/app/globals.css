@@ -44,96 +44,96 @@
 }
 
 /* ============================================================
-   ARSIP DIGITAL DPRD — WARM LIGHT THEME (flat, no glass)
-   Primer: muted navy. Aksen: muted teal, dipakai hemat.
+   YUDIT CLOUD — DARK GLASSMORPHISM THEME
    ============================================================ */
 :root {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
-  --background: #faf7f2;
-  --foreground: #292524;
-  --card: #ffffff;
-  --card-foreground: #292524;
-  --popover: #ffffff;
-  --popover-foreground: #292524;
-  --primary: #1e3a5f;
-  --primary-foreground: #faf7f2;
-  --secondary: #f1ece2;
-  --secondary-foreground: #44403c;
-  --muted: #f1ece2;
-  --muted-foreground: #78716c;
-  --accent: #e6f0ee;
-  --accent-foreground: #0f766e;
-  --destructive: #b91c1c;
-  --border: #e5ded2;
-  --input: #e5ded2;
-  --ring: #1e3a5f;
-  --chart-1: #1e3a5f;
-  --chart-2: #0f766e;
-  --chart-3: #b45309;
-  --chart-4: #78716c;
-  --chart-5: #15803d;
-  --sidebar: #f5f1e8;
-  --sidebar-foreground: #44403c;
-  --sidebar-primary: #1e3a5f;
-  --sidebar-primary-foreground: #faf7f2;
-  --sidebar-accent: #ebe5d6;
-  --sidebar-accent-foreground: #292524;
-  --sidebar-border: #e5ded2;
-  --sidebar-ring: #1e3a5f;
+  /* Light fallback (unused but kept for shadcn compat) */
+  --background: oklch(0.99 0.002 250);
+  --foreground: oklch(0.18 0.02 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.02 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.02 260);
+  --primary: oklch(0.55 0.22 265);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.96 0.01 250);
+  --secondary-foreground: oklch(0.2 0.02 260);
+  --muted: oklch(0.96 0.01 250);
+  --muted-foreground: oklch(0.52 0.02 260);
+  --accent: oklch(0.96 0.01 250);
+  --accent-foreground: oklch(0.2 0.02 260);
+  --destructive: oklch(0.58 0.24 27);
+  --border: oklch(0.9 0.005 250);
+  --input: oklch(0.9 0.005 250);
+  --ring: oklch(0.55 0.22 265);
+  --chart-1: oklch(0.55 0.22 265);
+  --chart-2: oklch(0.7 0.15 200);
+  --chart-3: oklch(0.65 0.2 160);
+  --chart-4: oklch(0.78 0.18 80);
+  --chart-5: oklch(0.62 0.24 16);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.18 0.02 260);
+  --sidebar-primary: oklch(0.55 0.22 265);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.96 0.01 250);
+  --sidebar-accent-foreground: oklch(0.2 0.02 260);
+  --sidebar-border: oklch(0.9 0.005 250);
+  --sidebar-ring: oklch(0.55 0.22 265);
 
-  /* Brand tokens — dipakai di seluruh aplikasi */
-  --y-bg: #faf7f2;
-  --y-bg-elev: #ffffff;
-  --y-bg-elev-2: #f3efe6;
-  --y-bg-hover: #f0ebe0;
-  --y-border: #e5ded2;
-  --y-border-soft: #ede7d9;
-  --y-text: #292524;
-  --y-text-dim: #78716c;
-  --y-text-mute: #a8a29e;
-  --y-primary: #1e3a5f;
-  --y-primary-hover: #16294a;
-  --y-primary-glow: rgba(30, 58, 95, 0.14);
-  --y-accent: #0f766e;
-  --y-accent-glow: rgba(15, 118, 110, 0.12);
-  --y-success: #15803d;
-  --y-warn: #b45309;
-  --y-danger: #b91c1c;
+  /* Yudit brand tokens (used across the app) */
+  --y-bg: #0a0f1f;
+  --y-bg-elev: #111835;
+  --y-bg-elev-2: #161f3f;
+  --y-bg-hover: #1b2548;
+  --y-border: #232c4d;
+  --y-border-soft: #1a2240;
+  --y-text: #e7ecff;
+  --y-text-dim: #8e9ac4;
+  --y-text-mute: #5c6790;
+  --y-primary: #6366f1;
+  --y-primary-hover: #4f46e5;
+  --y-primary-glow: rgba(99, 102, 241, 0.35);
+  --y-accent: #22d3ee;
+  --y-accent-glow: rgba(34, 211, 238, 0.25);
+  --y-success: #10b981;
+  --y-warn: #f59e0b;
+  --y-danger: #ef4444;
 }
 
 .dark {
-  --background: #1c1917;
-  --foreground: #f5f5f4;
-  --card: #292524;
-  --card-foreground: #f5f5f4;
-  --popover: #292524;
-  --popover-foreground: #f5f5f4;
-  --primary: #93b4d4;
-  --primary-foreground: #1c1917;
-  --secondary: #44403c;
-  --secondary-foreground: #f5f5f4;
-  --muted: #44403c;
-  --muted-foreground: #a8a29e;
-  --accent: #44403c;
-  --accent-foreground: #f5f5f4;
-  --destructive: #f87171;
-  --border: #44403c;
-  --input: #44403c;
-  --ring: #93b4d4;
-  --chart-1: #93b4d4;
-  --chart-2: #2dd4bf;
-  --chart-3: #fbbf24;
-  --chart-4: #a8a29e;
-  --chart-5: #4ade80;
-  --sidebar: #292524;
-  --sidebar-foreground: #f5f5f4;
-  --sidebar-primary: #93b4d4;
-  --sidebar-primary-foreground: #1c1917;
-  --sidebar-accent: #44403c;
-  --sidebar-accent-foreground: #f5f5f4;
-  --sidebar-border: #44403c;
-  --sidebar-ring: #93b4d4;
+  --background: oklch(0.16 0.02 264);
+  --foreground: oklch(0.97 0.01 250);
+  --card: oklch(0.21 0.025 264);
+  --card-foreground: oklch(0.97 0.01 250);
+  --popover: oklch(0.21 0.025 264);
+  --popover-foreground: oklch(0.97 0.01 250);
+  --primary: oklch(0.62 0.21 266);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.27 0.03 264);
+  --secondary-foreground: oklch(0.97 0.01 250);
+  --muted: oklch(0.25 0.025 264);
+  --muted-foreground: oklch(0.68 0.02 264);
+  --accent: oklch(0.27 0.03 264);
+  --accent-foreground: oklch(0.97 0.01 250);
+  --destructive: oklch(0.68 0.2 22);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.62 0.21 266);
+  --chart-1: oklch(0.62 0.21 266);
+  --chart-2: oklch(0.78 0.15 195);
+  --chart-3: oklch(0.7 0.19 162);
+  --chart-4: oklch(0.8 0.18 80);
+  --chart-5: oklch(0.66 0.24 16);
+  --sidebar: oklch(0.19 0.025 264);
+  --sidebar-foreground: oklch(0.97 0.01 250);
+  --sidebar-primary: oklch(0.62 0.21 266);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.25 0.03 264);
+  --sidebar-accent-foreground: oklch(0.97 0.01 250);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.62 0.21 266);
 }
 
 @layer base {
@@ -148,80 +148,93 @@
     @apply bg-background text-foreground;
     background-color: var(--y-bg);
     color: var(--y-text);
-    font-feature-settings: "cv11";
-  }
-  /* Angka tabular agar kolom metadata rapi */
-  .tnum {
-    font-variant-numeric: tabular-nums;
   }
 }
 
 /* ============================================================
-   APP BACKGROUND — flat, tanpa glow
-   (nama kelas dipertahankan agar kompatibel)
+   AMBIENT BACKGROUND GLOW
    ============================================================ */
 .yudit-ambient::before {
   content: "";
   position: fixed;
   inset: 0;
-  background: var(--y-bg);
+  background:
+    radial-gradient(
+      ellipse 80% 50% at 15% -5%,
+      rgba(99, 102, 241, 0.18),
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 70% 50% at 90% 105%,
+      rgba(34, 211, 238, 0.12),
+      transparent 60%
+    );
   pointer-events: none;
   z-index: 0;
 }
 
 /* ============================================================
-   SURFACES — flat, pemisah lewat tone, bukan garis/bayangan
+   GLASS SURFACES
    ============================================================ */
 .y-glass {
-  background: var(--y-bg-elev);
-  border: 1px solid var(--y-border-soft);
+  background: rgba(17, 24, 53, 0.55);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
 }
 
 .y-glass-strong {
-  background: var(--y-bg-elev);
-  border: 1px solid var(--y-border);
+  background: rgba(11, 16, 32, 0.7);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
 }
 
 .y-surface {
-  background: var(--y-bg-elev);
+  background: rgba(22, 31, 63, 0.6);
   border: 1px solid var(--y-border-soft);
 }
 
 .y-surface-hover:hover {
   background: var(--y-bg-hover);
-  border-color: var(--y-border);
+  border-color: rgba(99, 102, 241, 0.35);
 }
 
 /* ============================================================
-   BRAND — flat navy, tanpa gradien
+   GRADIENT TEXT
    ============================================================ */
 .y-gradient-text {
-  color: var(--y-primary);
+  background: linear-gradient(135deg, var(--y-primary), var(--y-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .y-gradient-brand {
-  background: var(--y-primary);
+  background: linear-gradient(135deg, var(--y-primary), var(--y-accent));
 }
 
 .y-gradient-brand-hover:hover {
-  background: var(--y-primary-hover);
+  background: linear-gradient(
+    135deg,
+    var(--y-primary-hover),
+    #0891b2
+  );
 }
 
 /* ============================================================
-   SHADOWS — tipis & sewarna latar, hanya untuk yang melayang
+   GLOW SHADOWS
    ============================================================ */
 .y-glow-primary {
-  box-shadow: none;
+  box-shadow: 0 8px 32px var(--y-primary-glow);
 }
 
 .y-glow-soft {
-  box-shadow: 0 1px 2px rgba(41, 37, 36, 0.06);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 .y-glow-elev {
   box-shadow:
-    0 4px 16px rgba(41, 37, 36, 0.1),
-    0 0 0 1px var(--y-border-soft);
+    0 8px 24px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(99, 102, 241, 0.12);
 }
 
 /* ============================================================
@@ -235,7 +248,7 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d6cfc0;
+  background: var(--y-bg-hover);
   border-radius: 99px;
   border: 2px solid transparent;
   background-clip: content-box;
@@ -246,7 +259,7 @@
 }
 
 /* ============================================================
-   ANIMATIONS — tenang, tidak mengganggu kerja
+   ANIMATIONS
    ============================================================ */
 @keyframes y-fade-in {
   from {
@@ -293,25 +306,33 @@
 }
 
 /* ============================================================
-   CUSTOM FOCUS RING — jelas untuk keyboard
+   CUSTOM FOCUS RING
    ============================================================ */
 .y-focus:focus-visible {
-  outline: 2px solid var(--y-primary);
-  outline-offset: 2px;
+  outline: none;
+  border-color: var(--y-primary);
+  box-shadow: 0 0 0 3px var(--y-primary-glow);
 }
 
 /* ============================================================
-   NAV ITEM ACTIVE STATE — flat navy tint
+   NAV ITEM ACTIVE STATE
    ============================================================ */
 .y-nav-active {
-  background: #e4e9f0;
-  color: var(--y-primary);
-  box-shadow: inset 2px 0 0 var(--y-primary);
+  background: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.22),
+    rgba(34, 211, 238, 0.1)
+  );
+  color: var(--y-text);
+  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.3);
 }
 
 /* ============================================================
-   GRID PATTERN — dinonaktifkan (flat lebih jujur)
+   GRID PATTERN (subtle)
    ============================================================ */
 .y-grid-pattern {
-  background-image: none;
+  background-image:
+    linear-gradient(rgba(99, 102, 241, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99, 102, 241, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
 }

@@ -26,22 +26,11 @@ if (!API_URL) {
 
 export const API_BASE_URL = API_URL || "";
 
-// Proxy dev-only (lihat next.config.ts rewrites): request API lewat
-// same-origin "/api/be" sehingga bebas CORS saat development di localhost.
-// Production tetap langsung ke backend. Flag hanya dibaca dari env lokal.
-export const USE_PROXY = process.env.NEXT_PUBLIC_USE_PROXY === "true";
-export const PROXY_PREFIX = "/api/be";
-
-function baseURL(): string {
-  if (USE_PROXY) return PROXY_PREFIX;
-  return API_BASE_URL;
-}
-
 export const TOKEN_KEY = "yudit_token";
 export const USER_KEY = "yudit_user";
 
 export const api = axios.create({
-  baseURL: baseURL(),
+  baseURL: API_BASE_URL,
   timeout: 120_000, // 2 menit — upload file besar
   headers: { "Content-Type": "application/json" },
 });
@@ -150,9 +139,6 @@ api.interceptors.response.use(
 // =====================================================
 export function getApiUrl(path: string): string {
   if (path.startsWith("http")) return path;
-  if (USE_PROXY) {
-    return `${PROXY_PREFIX}${path.startsWith("/") ? "" : "/"}${path}`;
-  }
   if (!API_BASE_URL) {
     throw new Error(
       "NEXT_PUBLIC_API_URL is not configured. " +
