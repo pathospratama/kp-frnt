@@ -1,7 +1,11 @@
 // src/components/yudit/views/collaborators-view.tsx
+// DPRD Cloud — Collaborators UI refresh
+// Fokus: kontras konsisten, theme-aware surfaces, hover/focus terlihat,
+// responsive actions, dan mempertahankan kontrak API/backend yang sudah ada.
+
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   UserPlus,
@@ -19,14 +23,18 @@ import {
   Search,
   AlertCircle,
   Users,
-  Eye,
-  EyeOff,
   X,
   Info,
+  RefreshCw,
+  UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { useYudit, canManageWorkspace, isOwner as isOwnerFn } from "@/lib/yudit/store";
+import {
+  useYudit,
+  canManageWorkspace,
+  isOwner as isOwnerFn,
+} from "@/lib/yudit/store";
 import {
   listCollaborators,
   inviteCollaborator,
@@ -36,342 +44,420 @@ import {
 import type { Collaborator } from "@/lib/yudit/types";
 import { cn } from "@/lib/utils";
 
-// =====================================================
-// MAIN VIEW
-// =====================================================
+// -----------------------------------------------------------------------------
+// Utilities
+// -----------------------------------------------------------------------------
+async function copyText(value: string, successMessage: string): Promise<boolean> {
+  try {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error("Clipboard API tidak tersedia pada browser ini");
+    }
+    await navigator.clipboard.writeText(value);
+    toast.success(successMessage);
+    return true;
+  } catch {
+    toast.error("Tidak dapat menyalin. Periksa izin clipboard browser.");
+    return false;
+  }
+}
+
+function getInitial(value?: string | null): string {
+  const normalized = value?.trim();
+  return normalized ? normalized.charAt(0).toUpperCase() : "?";
+}
+
+// -----------------------------------------------------------------------------
+// Main view
+// -----------------------------------------------------------------------------
 export function CollaboratorsView() {
-  const user = useYudit((s) => s.user);
-  const showConfirm = useYudit((s) => s.showConfirm);
+  const user = useYudit((state) => state.user);
+  const showConfirm = useYudit((state) => state.showConfirm);
 
   const [collabs, setCollabs] = useState<Collaborator[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
 
-  // Guards
   const canManage = canManageWorkspace(user);
   const isOwner = isOwnerFn(user);
 
-  // =====================================================
-  // LOAD
-  // =====================================================
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await listCollaborators();
-      setCollabs(res);
-    } catch (e: any) {
-      toast.error(e?.detail || "Gagal memuat collaborator");
+      const result = await listCollaborators();
+      setCollabs(Array.isArray(result) ? result : []);
+    } catch (error: unknown) {
+      const message =
+        typeof error === "object" && error !== null && "detail" in error
+          ? String((error as { detail?: unknown }).detail || "")
+          : "";
+      toast.error(message || "Gagal memuat daftar collaborator");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    if (canManage) load();
-  }, [canManage]);
+    if (canManage) {
+      void load();
+    } else {
+      setLoading(false);
+    }
+  }, [canManage, load]);
 
-  // =====================================================
-  // FILTER
-  // =====================================================
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return collabs;
-    return collabs.filter(
-      (c) =>
-        c.email.toLowerCase().includes(q) ||
-        c.username.toLowerCase().includes(q),
-    );
+    const query = search.trim().toLocaleLowerCase();
+    if (!query) return collabs;
+
+    return collabs.filter((collaborator) => {
+      const email = collaborator.email?.toLocaleLowerCase() ?? "";
+      const username = collaborator.username?.toLocaleLowerCase() ?? "";
+      return email.includes(query) || username.includes(query);
+    });
   }, [collabs, search]);
 
-  // =====================================================
-  // STATS
-  // =====================================================
   const stats = useMemo(
     () => ({
       total: collabs.length,
-      superAdmins: collabs.filter((c) => c.role === "super_admin").length,
-      active: collabs.filter((c) => c.is_active).length,
-      pendingPassword: collabs.filter((c) => c.must_change_password).length,
+      superAdmins: collabs.filter((item) => item.role === "super_admin").length,
+      active: collabs.filter((item) => item.is_active).length,
+      pendingPassword: collabs.filter((item) => item.must_change_password).length,
     }),
     [collabs],
   );
 
-  // =====================================================
-  // HANDLERS
-  // =====================================================
-  const handleToggleActive = (c: Collaborator) => {
+  const handleToggleActive = (collaborator: Collaborator) => {
     showConfirm(
-      c.is_active ? "Nonaktifkan akun?" : "Aktifkan akun?",
-      c.is_active
-        ? `${c.email} tidak akan bisa login sampai diaktifkan lagi.`
-        : `${c.email} akan bisa login kembali.`,
+      collaborator.is_active ? "Nonaktifkan akun?" : "Aktifkan akun?",
+      collaborator.is_active
+        ? `${collaborator.email} tidak akan bisa login sampai diaktifkan kembali.`
+        : `${collaborator.email} akan bisa login kembali.`,
       async () => {
         try {
-          await updateCollaborator(c.id, { is_active: !c.is_active });
+          await updateCollaborator(collaborator.id, {
+            is_active: !collaborator.is_active,
+          });
           toast.success(
-            c.is_active ? "Akun dinonaktifkan" : "Akun diaktifkan",
+            collaborator.is_active ? "Akun berhasil dinonaktifkan" : "Akun berhasil diaktifkan",
           );
           await load();
-        } catch (e: any) {
-          toast.error(e?.detail || "Gagal update");
+        } catch (error: any) {
+          toast.error(error?.detail || "Gagal mengubah status akun");
         }
       },
     );
   };
 
-  const handleResetPassword = (c: Collaborator) => {
+  const handleResetPassword = (collaborator: Collaborator) => {
     showConfirm(
-      "Reset password?",
-      `Password ${c.email} akan dikembalikan ke "123456" dan wajib diganti saat login berikutnya.`,
+      "Reset password collaborator?",
+      `Password ${collaborator.email} akan dikembalikan ke password sementara 123456 dan wajib diganti saat login berikutnya.`,
       async () => {
         try {
-          await updateCollaborator(c.id, { reset_password: true });
-          toast.success("Password direset ke 123456");
+          await updateCollaborator(collaborator.id, { reset_password: true });
+          toast.success("Password collaborator berhasil direset");
           await load();
-        } catch (e: any) {
-          toast.error(e?.detail || "Gagal reset");
+        } catch (error: any) {
+          toast.error(error?.detail || "Gagal mereset password");
         }
       },
     );
   };
 
-  const handleChangeRole = (c: Collaborator) => {
-    const newRole = c.role === "super_admin" ? "member" : "super_admin";
+  const handleChangeRole = (collaborator: Collaborator) => {
+    const nextRole = collaborator.role === "super_admin" ? "member" : "super_admin";
     showConfirm(
-      `Jadikan ${newRole === "super_admin" ? "Super Admin" : "Member"}?`,
-      newRole === "super_admin"
-        ? `${c.email} bisa mengelola collaborator dan drive accounts.`
-        : `${c.email} hanya bisa upload & edit dokumen yang di-assign.`,
+      `Ubah menjadi ${nextRole === "super_admin" ? "Super Admin" : "Member"}?`,
+      nextRole === "super_admin"
+        ? `${collaborator.email} akan dapat mengelola collaborator dan akun Google Drive.`
+        : `${collaborator.email} hanya dapat mengelola dokumen yang ditugaskan.`,
       async () => {
         try {
-          await updateCollaborator(c.id, { role: newRole });
-          toast.success(`Role diubah ke ${newRole}`);
+          await updateCollaborator(collaborator.id, { role: nextRole });
+          toast.success("Role collaborator berhasil diperbarui");
           await load();
-        } catch (e: any) {
-          toast.error(e?.detail || "Gagal ubah role");
+        } catch (error: any) {
+          toast.error(error?.detail || "Gagal mengubah role");
         }
       },
     );
   };
 
-  const handleRemove = (c: Collaborator) => {
+  const handleRemove = (collaborator: Collaborator) => {
     showConfirm(
       "Hapus collaborator?",
-      `${c.email} akan dihapus permanen. Semua assignment dokumennya juga dicabut.`,
+      `${collaborator.email} akan dihapus permanen. Assignment dokumen miliknya juga akan dicabut.`,
       async () => {
         try {
-          await removeCollaborator(c.id);
-          toast.success("Collaborator dihapus");
+          await removeCollaborator(collaborator.id);
+          toast.success("Collaborator berhasil dihapus");
           await load();
-        } catch (e: any) {
-          toast.error(e?.detail || "Gagal hapus");
+        } catch (error: any) {
+          toast.error(error?.detail || "Gagal menghapus collaborator");
         }
       },
     );
   };
 
-  // =====================================================
-  // GUARD RENDER
-  // =====================================================
   if (!canManage) {
     return (
-      <div className="grid place-items-center py-20">
-        <div className="max-w-sm rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-8 text-center">
-          <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-[rgba(239,68,68,0.15)]">
-            <AlertCircle size={28} className="text-[var(--y-danger)]" />
+      <section className="grid min-h-[320px] place-items-center px-4 py-12">
+        <div className="w-full max-w-sm rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-8 text-center shadow-sm">
+          <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-[rgba(239,68,68,0.12)]">
+            <AlertCircle size={26} className="text-[var(--y-danger)]" />
           </div>
-          <h3 className="mb-2 text-base font-semibold text-[var(--y-text)]">
-            Akses Ditolak
-          </h3>
-          <p className="text-sm text-[var(--y-text-dim)]">
-            Hanya owner atau super admin yang bisa mengelola collaborator.
+          <h2 className="mb-2 text-base font-bold text-[var(--y-text)]">Akses Ditolak</h2>
+          <p className="text-sm leading-relaxed text-[var(--y-text-dim)]">
+            Hanya owner atau super admin yang dapat mengelola collaborator workspace.
           </p>
         </div>
-      </div>
+      </section>
     );
   }
 
-  // =====================================================
-  // RENDER
-  // =====================================================
   return (
-    <div className="y-anim-fade">
+    <section className="y-anim-fade min-w-0 space-y-5" aria-labelledby="collaborators-title">
       {/* Header */}
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-[var(--y-text)]">
-            Collaborators
-          </h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <div className="mb-1 flex items-center gap-2">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[rgba(249,91,47,0.12)] text-[var(--y-primary)]">
+              <Users size={18} />
+            </div>
+            <h1 id="collaborators-title" className="text-xl font-bold tracking-tight text-[var(--y-text)]">
+              Collaborators
+            </h1>
+          </div>
           <p className="text-[13px] text-[var(--y-text-dim)]">
-            Kelola tim yang bisa mengakses workspace Anda
+            Kelola anggota tim dan hak akses workspace Anda.
           </p>
         </div>
-        <button
-          onClick={() => setInviteOpen(true)}
-          className="y-gradient-brand y-glow-primary inline-flex h-9 items-center gap-2 rounded-lg px-4 text-[13px] font-semibold text-white transition-all hover:-translate-y-0.5"
-        >
-          <UserPlus size={15} />
-          Undang Collaborator
-        </button>
+
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] px-3 text-[13px] font-semibold text-[var(--y-text-dim)] shadow-sm transition-colors hover:border-[var(--y-primary)] hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none"
+          >
+            <RefreshCw size={14} className={cn(loading && "animate-spin")} />
+            Refresh
+          </button>
+          <button
+            type="button"
+            onClick={() => setInviteOpen(true)}
+            className="y-gradient-brand y-glow-primary inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-[13px] font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 sm:flex-none"
+          >
+            <UserPlus size={15} />
+            Undang Collaborator
+          </button>
+        </div>
       </div>
 
-      {/* Stats */}
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* Statistics */}
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatCard
           label="Total"
           value={stats.total}
-          icon={<Users size={15} />}
+          icon={<Users size={16} />}
           color="#6366f1"
+          helper="Seluruh collaborator"
         />
         <StatCard
           label="Super Admin"
           value={stats.superAdmins}
-          icon={<ShieldCheck size={15} />}
-          color="#f59e0b"
+          icon={<ShieldCheck size={16} />}
+          color="#d97706"
+          helper="Akses pengelolaan"
         />
         <StatCard
           label="Aktif"
           value={stats.active}
-          icon={<UserCheck size={15} />}
-          color="#10b981"
+          icon={<UserCheck size={16} />}
+          color="#059669"
+          helper="Akun dapat login"
         />
         <StatCard
-          label="Perlu Ganti PW"
+          label="Perlu Ganti Password"
           value={stats.pendingPassword}
-          icon={<KeyRound size={15} />}
-          color="#ef4444"
+          icon={<KeyRound size={16} />}
+          color="#e11d48"
+          helper="Password sementara"
         />
       </div>
 
       {/* Search */}
-      <div className="relative mb-4">
+      <div className="relative">
         <Search
-          size={16}
+          size={17}
+          aria-hidden="true"
           className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--y-text-mute)]"
         />
         <input
+          type="search"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cari email atau username…"
-          className="y-focus h-11 w-full rounded-xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] pl-10 pr-10 text-sm text-[var(--y-text)] placeholder:text-[var(--y-text-mute)] outline-none"
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Cari berdasarkan email atau username..."
+          aria-label="Cari collaborator"
+          className="y-focus h-11 w-full rounded-xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] pl-10 pr-11 text-sm text-[var(--y-text)] shadow-sm outline-none transition-colors placeholder:text-[var(--y-text-mute)] focus:border-[var(--y-primary)]"
         />
         {search && (
           <button
+            type="button"
             onClick={() => setSearch("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--y-text-mute)] hover:text-[var(--y-text)]"
+            aria-label="Bersihkan pencarian"
+            title="Bersihkan pencarian"
+            className="absolute right-2.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-lg text-[var(--y-text-mute)] transition-colors hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--y-primary)]"
           >
-            <X size={16} />
+            <X size={15} />
           </button>
         )}
       </div>
 
+      {/* Results header */}
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-bold text-[var(--y-text)]">Daftar anggota</h2>
+          <p className="text-xs text-[var(--y-text-mute)]">
+            {search
+              ? `${filtered.length} hasil dari ${collabs.length} collaborator`
+              : `${filtered.length} collaborator terdaftar`}
+          </p>
+        </div>
+        <span className="rounded-full border border-[var(--y-border)] bg-[var(--y-bg-elev)] px-2.5 py-1 text-xs font-semibold tabular-nums text-[var(--y-text-dim)]">
+          {filtered.length} / {collabs.length}
+        </span>
+      </div>
+
       {/* List */}
       {loading ? (
-        <div className="grid place-items-center py-16">
-          <Loader2 size={28} className="animate-spin text-[var(--y-primary)]" />
+        <div className="grid min-h-44 place-items-center rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)]">
+          <div className="flex items-center gap-3 text-sm text-[var(--y-text-dim)]">
+            <Loader2 size={20} className="animate-spin text-[var(--y-primary)]" />
+            Memuat collaborator...
+          </div>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="grid place-items-center rounded-2xl border border-dashed border-[var(--y-border)] py-16 text-center">
-          <div className="grid h-16 w-16 place-items-center rounded-2xl bg-[var(--y-bg-elev)]">
-            <Users size={28} className="text-[var(--y-text-mute)]" />
+        <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[var(--y-border)] bg-[var(--y-bg-elev)] px-5 py-10 text-center">
+          <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[var(--y-bg-hover)] text-[var(--y-text-mute)]">
+            <Users size={25} />
           </div>
-          <div className="mt-3 text-sm font-semibold text-[var(--y-text-dim)]">
-            {search ? "Tidak ada hasil" : "Belum ada collaborator"}
-          </div>
-          <div className="mt-1 text-xs text-[var(--y-text-mute)]">
+          <h3 className="mt-3 text-sm font-bold text-[var(--y-text)]">
+            {search ? "Collaborator tidak ditemukan" : "Belum ada collaborator"}
+          </h3>
+          <p className="mt-1 max-w-sm text-xs leading-relaxed text-[var(--y-text-dim)]">
             {search
-              ? "Coba kata kunci lain"
-              : "Klik 'Undang Collaborator' untuk menambah"}
-          </div>
+              ? "Coba kata kunci email atau username yang berbeda."
+              : "Undang anggota tim agar mereka dapat mengakses workspace sesuai role."}
+          </p>
+          {search ? (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="mt-3 rounded-lg px-3 py-2 text-xs font-semibold text-[var(--y-primary)] hover:bg-[var(--y-bg-hover)]"
+            >
+              Hapus pencarian
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setInviteOpen(true)}
+              className="y-gradient-brand mt-4 inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold text-white"
+            >
+              <UserPlus size={14} /> Undang collaborator
+            </button>
+          )}
         </div>
       ) : (
-        <div className="rounded-2xl border border-[var(--y-border-soft)] bg-[rgba(17,24,53,0.4)] p-2">
-          <div className="flex flex-col gap-1">
-            {filtered.map((c, i) => (
+        // IMPORTANT: gunakan surface theme, jangan gunakan rgba navy transparan.
+        // Ini menghindari teks gelap di atas panel abu-abu pada light theme.
+        <div className="rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg)] p-2 shadow-sm sm:p-3">
+          <div className="flex flex-col gap-2" aria-busy={loading}>
+            {filtered.map((collaborator, index) => (
               <CollaboratorRow
-                key={c.id}
-                collab={c}
+                key={collaborator.id}
+                collab={collaborator}
                 isOwner={isOwner}
-                                index={i}
-                onToggleActive={() => handleToggleActive(c)}
-                onResetPassword={() => handleResetPassword(c)}
-                onChangeRole={() => handleChangeRole(c)}
-                onRemove={() => handleRemove(c)}
+                index={index}
+                onToggleActive={() => handleToggleActive(collaborator)}
+                onResetPassword={() => handleResetPassword(collaborator)}
+                onChangeRole={() => handleChangeRole(collaborator)}
+                onRemove={() => handleRemove(collaborator)}
               />
             ))}
           </div>
         </div>
       )}
 
-      {/* Info card */}
-      <div className="mt-5 flex items-start gap-3 rounded-2xl border border-[var(--y-border-soft)] bg-[rgba(99,102,241,0.05)] p-4">
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[rgba(99,102,241,0.15)]">
-          <Info size={16} className="text-[var(--y-primary)]" />
+      {/* Role explanation */}
+      <div className="flex items-start gap-3 rounded-2xl border border-[rgba(99,102,241,0.18)] bg-[rgba(99,102,241,0.055)] p-4">
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[rgba(99,102,241,0.12)] text-[#6366f1]">
+          <Info size={17} />
         </div>
-        <div className="text-[12px] leading-relaxed text-[var(--y-text-dim)]">
-          <b className="text-[var(--y-text)]">Tentang role:</b>
-          <div className="mt-1 space-y-0.5">
-            <div>
-              <b className="text-[#f59e0b]">Super Admin</b> — bisa kelola
-              collaborator, drive accounts, dan assign dokumen.
-            </div>
-            <div>
-              <b className="text-[var(--y-primary)]">Member</b> — hanya bisa
-              upload dan edit dokumen yang di-assign oleh owner/super admin.
-            </div>
-          </div>
+        <div className="min-w-0 text-xs leading-relaxed text-[var(--y-text-dim)]">
+          <h3 className="font-bold text-[var(--y-text)]">Tentang role collaborator</h3>
+          <p className="mt-1">
+            <strong className="font-semibold text-[var(--y-warn)]">Super Admin</strong>
+            {" — "}dapat mengelola collaborator, akun Google Drive, dan penugasan dokumen.
+          </p>
+          <p className="mt-0.5">
+            <strong className="font-semibold text-[var(--y-primary)]">Member</strong>
+            {" — "}dapat mengunggah dan mengedit dokumen yang ditugaskan oleh owner atau super admin.
+          </p>
         </div>
       </div>
 
-      {/* Invite modal */}
       <InviteCollaboratorModal
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
         onSuccess={load}
         isOwner={isOwner}
       />
-    </div>
+    </section>
   );
 }
 
-// =====================================================
-// STAT CARD
-// =====================================================
+// -----------------------------------------------------------------------------
+// Stat card
+// -----------------------------------------------------------------------------
 function StatCard({
   label,
   value,
   icon,
   color,
+  helper,
 }: {
   label: string;
   value: number;
   icon: React.ReactNode;
   color: string;
+  helper: string;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-4">
-      <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--y-text-mute)]">
+    <article className="min-w-0 rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-3.5 shadow-sm transition-shadow hover:shadow-md sm:p-4">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="truncate text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--y-text-mute)] sm:text-[11px]">
           {label}
         </span>
-        <div
-          className="grid h-7 w-7 place-items-center rounded-lg"
-          style={{ background: `${color}22`, color }}
+        <span
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-xl"
+          style={{ backgroundColor: `${color}18`, color }}
+          aria-hidden="true"
         >
           {icon}
-        </div>
+        </span>
       </div>
-      <div className="text-xl font-bold tabular-nums text-[var(--y-text)]">
+      <div className="text-2xl font-bold leading-none tabular-nums text-[var(--y-text)]">
         {value}
       </div>
-    </div>
+      <p className="mt-2 truncate text-[10px] text-[var(--y-text-mute)]">{helper}</p>
+    </article>
   );
 }
 
-// =====================================================
-// COLLABORATOR ROW
-// =====================================================
+// -----------------------------------------------------------------------------
+// Collaborator row
+// -----------------------------------------------------------------------------
 function CollaboratorRow({
   collab,
   isOwner,
@@ -391,164 +477,183 @@ function CollaboratorRow({
 }) {
   const [copied, setCopied] = useState(false);
 
-  const copyEmail = () => {
-    navigator.clipboard?.writeText(collab.email).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  const handleCopyEmail = async () => {
+    const ok = await copyText(collab.email, "Email collaborator berhasil disalin");
+    if (ok) {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    }
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 4 }}
+    <motion.article
+      data-collaborator-row
+      initial={{ opacity: 0, y: 5 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: Math.min(index * 0.02, 0.2) }}
+      transition={{ delay: Math.min(index * 0.025, 0.2), duration: 0.2 }}
       className={cn(
-        "group flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 transition-colors",
-        "hover:border-[var(--y-border-soft)] hover:bg-[rgba(22,31,63,0.6)]",
-        !collab.is_active && "opacity-60",
+        // Surface dan teks memakai token theme yang sama.
+        "group flex min-w-0 flex-col gap-3 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-3 shadow-[0_1px_2px_rgba(15,23,42,0.035)] transition-all duration-150",
+        // Hover terang/netral pada light mode, otomatis mengikuti token dark mode.
+        "hover:border-[var(--y-primary)] hover:bg-[var(--y-bg-hover)] hover:shadow-sm",
+        "focus-within:border-[var(--y-primary)] focus-within:ring-2 focus-within:ring-[var(--y-primary)]/20",
+        !collab.is_active && "opacity-75",
+        "sm:flex-row sm:items-center sm:gap-3.5 sm:px-3.5 sm:py-3",
       )}
     >
-      {/* Avatar */}
-      <div
-        className={cn(
-          "grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold text-white",
-          collab.role === "super_admin"
-            ? "bg-[#f59e0b]"
-            : "bg-[var(--y-primary)]",
-        )}
-      >
-        {collab.username.charAt(0).toUpperCase()}
-      </div>
-
-      {/* Info (2 baris: nama+badge+status, email) */}
-      <div className="min-w-0 flex-1">
-        {/* Baris 1: username + badges */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="truncate text-sm font-semibold text-[var(--y-text)]">
-            {collab.username}
-          </span>
-          <RoleBadge role={collab.role} />
-          {!collab.is_active && (
-            <span className="rounded-full bg-[rgba(239,68,68,0.15)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--y-danger)]">
-              NONAKTIF
-            </span>
+      <div className="flex min-w-0 items-center gap-3">
+        {/* Avatar */}
+        <div
+          className={cn(
+            "grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold text-white shadow-sm",
+            collab.role === "super_admin" ? "bg-amber-500" : "y-gradient-brand",
+            !collab.is_active && "grayscale",
           )}
-          {collab.must_change_password && (
-            <span className="rounded-full bg-[rgba(245,158,11,0.15)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--y-warn)]">
-              PERLU GANTI PW
-            </span>
-          )}
+          aria-hidden="true"
+        >
+          {getInitial(collab.username)}
         </div>
 
-        {/* Baris 2: email + copy button */}
-        <button
-          onClick={copyEmail}
-          className="group/email mt-0.5 flex items-center gap-1 text-[11px] text-[var(--y-text-dim)] hover:text-[var(--y-accent)]"
-          title="Klik untuk copy email"
-        >
-          <Mail size={10} />
-          <span className="truncate">{collab.email}</span>
-          {copied ? (
-            <Check size={10} className="text-[var(--y-success)]" />
-          ) : (
-            <Copy
-              size={10}
-              className="opacity-0 transition-opacity group-hover/email:opacity-100"
-            />
-          )}
-        </button>
+        {/* Identity */}
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <h3 className="max-w-full truncate text-sm font-bold text-[var(--y-text)]">
+              {collab.username || "Tanpa username"}
+            </h3>
+            <RoleBadge role={collab.role} />
+            {!collab.is_active && <StatusBadge kind="inactive">NONAKTIF</StatusBadge>}
+            {collab.must_change_password && <StatusBadge kind="warning">PERLU GANTI PW</StatusBadge>}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void handleCopyEmail()}
+            title="Salin alamat email"
+            aria-label={`Salin email ${collab.email}`}
+            className="group/email mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md text-left text-[11px] text-[var(--y-text-dim)] transition-colors hover:text-[var(--y-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--y-primary)]"
+          >
+            <Mail size={11} className="shrink-0" />
+            <span className="max-w-[min(68vw,420px)] truncate">{collab.email}</span>
+            {copied ? (
+              <Check size={11} className="shrink-0 text-[var(--y-success)]" />
+            ) : (
+              <Copy size={10} className="shrink-0 opacity-0 transition-opacity group-hover/email:opacity-100 group-focus-visible/email:opacity-100" />
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* Actions — selalu visible di mobile, hover di desktop */}
-      <div className="flex items-center gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-        {/* Ubah role — hanya owner */}
+      {/* Actions are visible on desktop and wrap on small screens. */}
+      <div className="grid grid-cols-2 gap-1.5 pl-[52px] sm:ml-auto sm:flex sm:shrink-0 sm:justify-end sm:pl-0">
         {isOwner && (
-          <ActionBtn
-            label={
-              collab.role === "super_admin"
-                ? "Jadikan Member"
-                : "Jadikan Super Admin"
-            }
+          <ActionButton
+            label={collab.role === "super_admin" ? "Jadikan Member" : "Jadikan Super Admin"}
             onClick={onChangeRole}
+            tone="neutral"
           >
-            {collab.role === "super_admin" ? (
-              <ShieldAlert size={14} />
-            ) : (
-              <Shield size={14} />
-            )}
-          </ActionBtn>
+            {collab.role === "super_admin" ? <ShieldAlert size={14} /> : <Shield size={14} />}
+            <span className="sm:hidden">Role</span>
+          </ActionButton>
         )}
-
-        {/* Reset password */}
-        <ActionBtn
-          label="Reset password ke 123456"
-          onClick={onResetPassword}
-        >
+        <ActionButton label="Reset password" onClick={onResetPassword} tone="warning">
           <KeyRound size={14} />
-        </ActionBtn>
-
-        {/* Aktif/nonaktif */}
-        <ActionBtn
-          label={collab.is_active ? "Nonaktifkan" : "Aktifkan"}
+          <span className="sm:hidden">Reset PW</span>
+        </ActionButton>
+        <ActionButton
+          label={collab.is_active ? "Nonaktifkan akun" : "Aktifkan akun"}
           onClick={onToggleActive}
+          tone="neutral"
         >
           {collab.is_active ? <UserX size={14} /> : <UserCheck size={14} />}
-        </ActionBtn>
-
-        {/* Hapus — hanya owner */}
+          <span className="sm:hidden">{collab.is_active ? "Nonaktifkan" : "Aktifkan"}</span>
+        </ActionButton>
         {isOwner && (
-          <ActionBtn label="Hapus permanen" onClick={onRemove} danger>
+          <ActionButton label="Hapus collaborator" onClick={onRemove} tone="danger">
             <Trash2 size={14} />
-          </ActionBtn>
+            <span className="sm:hidden">Hapus</span>
+          </ActionButton>
         )}
       </div>
-    </motion.div>
+    </motion.article>
   );
 }
 
-// =====================================================
-// ROLE BADGE
-// =====================================================
+// -----------------------------------------------------------------------------
+// Badges
+// -----------------------------------------------------------------------------
 export function RoleBadge({ role }: { role: "super_admin" | "member" }) {
-  if (role === "super_admin") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(245,158,11,0.15)] px-2 py-0.5 text-[9px] font-bold text-[#f59e0b]">
-        <ShieldCheck size={9} />
-        SUPER ADMIN
-      </span>
-    );
-  }
+  const isSuperAdmin = role === "super_admin";
+
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(99,102,241,0.15)] px-2 py-0.5 text-[9px] font-bold text-[var(--y-primary)]">
-      <Shield size={9} />
-      MEMBER
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold tracking-wide",
+        isSuperAdmin
+          ? "border-amber-500/25 bg-amber-500/10 text-[var(--y-warn)]"
+          : "border-indigo-500/20 bg-indigo-500/10 text-[var(--y-primary)]",
+      )}
+    >
+      {isSuperAdmin ? <ShieldCheck size={10} /> : <Shield size={10} />}
+      {isSuperAdmin ? "SUPER ADMIN" : "MEMBER"}
     </span>
   );
 }
 
-// =====================================================
-// ACTION BUTTON
-// =====================================================
-function ActionBtn({
+function StatusBadge({
+  kind,
+  children,
+}: {
+  kind: "inactive" | "warning";
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold tracking-wide",
+        kind === "warning"
+          ? "border-amber-500/25 bg-amber-500/10 text-[var(--y-warn)]"
+          : "border-rose-500/25 bg-rose-500/10 text-[var(--y-danger)]",
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Action button
+// -----------------------------------------------------------------------------
+function ActionButton({
   children,
   label,
   onClick,
-  danger,
+  tone,
 }: {
   children: React.ReactNode;
   label: string;
   onClick: () => void;
-  danger?: boolean;
+  tone: "neutral" | "warning" | "danger";
 }) {
+  const toneClass = {
+    neutral:
+      "border-[var(--y-border)] bg-[var(--y-bg-elev)] text-[var(--y-text-dim)] hover:border-[var(--y-primary)] hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)]",
+    warning:
+      "border-amber-500/25 bg-amber-500/5 text-[var(--y-warn)] hover:border-amber-500/50 hover:bg-amber-500/10",
+    danger:
+      "border-rose-500/25 bg-rose-500/5 text-[var(--y-danger)] hover:border-rose-500/50 hover:bg-rose-500/10",
+  }[tone];
+
   return (
     <button
+      type="button"
       onClick={onClick}
       title={label}
       aria-label={label}
       className={cn(
-        "grid h-7 w-7 place-items-center rounded-md text-[var(--y-text-dim)] transition-colors",
-        "hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)]",
-        danger && "hover:bg-[rgba(239,68,68,0.15)] hover:text-[var(--y-danger)]",
+        "inline-flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-lg border px-2 text-[11px] font-semibold transition-all",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--y-primary)] focus-visible:ring-offset-2",
+        "focus-visible:ring-offset-[var(--y-bg-elev)]",
+        toneClass,
       )}
     >
       {children}
@@ -556,9 +661,9 @@ function ActionBtn({
   );
 }
 
-// =====================================================
-// INVITE MODAL
-// =====================================================
+// -----------------------------------------------------------------------------
+// Invite modal
+// -----------------------------------------------------------------------------
 function InviteCollaboratorModal({
   open,
   onClose,
@@ -567,17 +672,14 @@ function InviteCollaboratorModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: () => Promise<void> | void;
   isOwner: boolean;
 }) {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [role, setRole] = useState<"member" | "super_admin">("member");
   const [submitting, setSubmitting] = useState(false);
-  const [created, setCreated] = useState<{
-    email: string;
-    password: string;
-  } | null>(null);
+  const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [copiedAll, setCopiedAll] = useState(false);
 
@@ -590,44 +692,58 @@ function InviteCollaboratorModal({
     setCopiedAll(false);
   };
 
-  // Cegah close saat submit
   const handleClose = () => {
     if (submitting) return;
     reset();
     onClose();
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     if (submitting) return;
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      toast.error("Email collaborator wajib diisi");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const res = await inviteCollaborator({
-        email: email.trim(),
+      const result = await inviteCollaborator({
+        email: normalizedEmail,
         username: username.trim() || undefined,
         role,
       });
       setCreated({
-        email: res.user.email,
-        password: res.temporary_password,
+        email: result.user.email,
+        password: result.temporary_password,
       });
-      toast.success("Collaborator ditambahkan");
-      onSuccess();
-    } catch (e: any) {
-      toast.error(e?.detail || "Gagal menambahkan");
+      toast.success("Collaborator berhasil ditambahkan");
+      await onSuccess();
+    } catch (error: any) {
+      toast.error(error?.detail || "Gagal menambahkan collaborator");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Copy kredensial lengkap
-  const handleCopyCredentials = () => {
+  const handleCopyCredentials = async () => {
     if (!created) return;
-    const text = `Email: ${created.email}\nPassword: ${created.password}\n\nLogin: ${window.location.origin}\n\nSegera ganti password setelah login pertama.`;
-    navigator.clipboard?.writeText(text).catch(() => {});
-    setCopiedAll(true);
-    setTimeout(() => setCopiedAll(false), 2000);
-    toast.success("Kredensial disalin");
+    const credentials = [
+      `Email: ${created.email}`,
+      `Password: ${created.password}`,
+      "",
+      `Login: ${window.location.origin}`,
+      "",
+      "Segera ganti password setelah login pertama.",
+    ].join("\n");
+
+    const ok = await copyText(credentials, "Kredensial berhasil disalin");
+    if (ok) {
+      setCopiedAll(true);
+      window.setTimeout(() => setCopiedAll(false), 2000);
+    }
   };
 
   return (
@@ -637,184 +753,192 @@ function InviteCollaboratorModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[998] grid place-items-center p-5"
-          style={{
-            background: "rgba(0,0,0,0.6)",
-            backdropFilter: "blur(4px)",
+          className="fixed inset-0 z-[998] grid place-items-center overflow-y-auto p-4 sm:p-6"
+          style={{ background: "rgba(15,23,42,0.58)", backdropFilter: "blur(5px)" }}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) handleClose();
           }}
-          onClick={handleClose}
+          role="presentation"
         >
           <motion.div
-            initial={{ scale: 0.95, opacity: 0, y: 8 }}
+            initial={{ scale: 0.97, opacity: 0, y: 10 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 8 }}
-            className="y-glass-strong y-glow-soft w-full max-w-md rounded-2xl border border-[var(--y-border)] p-6"
-            onClick={(e) => e.stopPropagation()}
+            exit={{ scale: 0.97, opacity: 0, y: 10 }}
+            transition={{ duration: 0.18 }}
+            className="y-glass-strong relative my-auto max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-5 shadow-2xl sm:p-6"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="invite-collaborator-title"
           >
+            <button
+              type="button"
+              onClick={handleClose}
+              disabled={submitting}
+              aria-label="Tutup dialog"
+              className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-lg text-[var(--y-text-mute)] transition-colors hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)] disabled:opacity-50"
+            >
+              <X size={17} />
+            </button>
+
             {created ? (
-              // ==================== SUCCESS STATE ====================
               <div>
-                <div className="text-center">
-                  <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-[rgba(16,185,129,0.15)]">
-                    <Check size={28} className="text-[var(--y-success)]" />
+                <div className="pr-8 text-center">
+                  <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-emerald-500/10 text-[var(--y-success)]">
+                    <Check size={27} />
                   </div>
-                  <h3 className="mb-1 text-base font-semibold text-[var(--y-text)]">
-                    Collaborator Ditambahkan
-                  </h3>
-                  <p className="mb-4 text-sm text-[var(--y-text-dim)]">
-                    Berikan kredensial berikut ke collaborator:
+                  <h2 id="invite-collaborator-title" className="text-base font-bold text-[var(--y-text)]">
+                    Collaborator ditambahkan
+                  </h2>
+                  <p className="mb-5 mt-1 text-sm leading-relaxed text-[var(--y-text-dim)]">
+                    Simpan kredensial sementara berikut dan berikan kepada anggota yang diundang.
                   </p>
                 </div>
 
-                {/* Credentials box */}
-                <div className="mb-3 space-y-2 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] p-3 text-left">
+                <div className="mb-3 space-y-3 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] p-3.5">
                   <div>
-                    <div className="text-[10px] font-semibold uppercase text-[var(--y-text-mute)]">
-                      Email
-                    </div>
-                    <div className="font-mono text-sm text-[var(--y-text)] break-all">
-                      {created.email}
-                    </div>
+                    <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-[var(--y-text-mute)]">Email</p>
+                    <p className="break-all font-mono text-sm text-[var(--y-text)]">{created.email}</p>
                   </div>
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <div className="text-[10px] font-semibold uppercase text-[var(--y-text-mute)]">
-                        Password Sementara
-                      </div>
+                  <div className="border-t border-[var(--y-border-soft)] pt-3">
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--y-text-mute)]">
+                        Password sementara
+                      </p>
                       <button
                         type="button"
-                        onClick={() => setShowPassword((s) => !s)}
-                        className="text-[10px] text-[var(--y-primary)] hover:underline"
+                        onClick={() => setShowPassword((current) => !current)}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--y-primary)] hover:underline"
                       >
                         {showPassword ? "Sembunyikan" : "Tampilkan"}
                       </button>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="font-mono text-sm text-[var(--y-warn)]">
-                        {showPassword ? created.password : "••••••"}
-                      </div>
-                    </div>
+                    <p className="font-mono text-sm font-bold tracking-wide text-[var(--y-text)]">
+                      {showPassword ? created.password : "••••••"}
+                    </p>
                   </div>
                 </div>
 
-                {/* Warning */}
-                <div className="mb-4 rounded-lg bg-[rgba(245,158,11,0.08)] p-2.5 text-[11px] text-[var(--y-warn)]">
-                  ⚠️ Collaborator <b>wajib ganti password</b> saat login
-                  pertama.
+                <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/8 p-3 text-xs leading-relaxed text-[var(--y-warn)]">
+                  <Info size={15} className="mt-0.5 shrink-0" />
+                  <p>
+                    Anggota wajib mengganti password sementara setelah berhasil login pertama kali.
+                  </p>
                 </div>
 
-                {/* Actions */}
-                <div className="flex gap-2">
+                <div className="flex flex-col-reverse gap-2 sm:flex-row">
                   <button
-                    onClick={handleCopyCredentials}
-                    className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] text-sm font-semibold text-[var(--y-text)] hover:bg-[var(--y-bg-hover)]"
+                    type="button"
+                    onClick={() => void handleCopyCredentials()}
+                    className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm font-semibold text-[var(--y-text)] transition-colors hover:bg-[var(--y-bg-hover)]"
                   >
-                    {copiedAll ? (
-                      <Check size={15} className="text-[var(--y-success)]" />
-                    ) : (
-                      <Copy size={15} />
-                    )}
-                    {copiedAll ? "Tersalin" : "Salin Kredensial"}
+                    {copiedAll ? <Check size={15} className="text-[var(--y-success)]" /> : <Copy size={15} />}
+                    {copiedAll ? "Tersalin" : "Salin kredensial"}
                   </button>
                   <button
+                    type="button"
                     onClick={handleClose}
-                    className="y-gradient-brand inline-flex h-10 flex-1 items-center justify-center rounded-lg text-sm font-semibold text-white"
+                    className="y-gradient-brand inline-flex h-10 flex-1 items-center justify-center rounded-xl px-3 text-sm font-semibold text-white"
                   >
                     Selesai
                   </button>
                 </div>
               </div>
             ) : (
-              // ==================== FORM STATE ====================
-              <form onSubmit={handleSubmit}>
-                <h3 className="mb-1 text-base font-semibold text-[var(--y-text)]">
-                  Undang Collaborator
-                </h3>
-                <p className="mb-4 text-xs text-[var(--y-text-dim)]">
-                  Collaborator akan mendapat password default{" "}
-                  <b>123456</b>
-                </p>
+              <form onSubmit={handleSubmit} className="pt-1">
+                <div className="mb-5 flex items-start gap-3 pr-8">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[rgba(249,91,47,0.12)] text-[var(--y-primary)]">
+                    <UserPlus size={19} />
+                  </div>
+                  <div>
+                    <h2 id="invite-collaborator-title" className="text-base font-bold text-[var(--y-text)]">
+                      Undang collaborator
+                    </h2>
+                    <p className="mt-1 text-xs leading-relaxed text-[var(--y-text-dim)]">
+                      Anggota baru akan dibuat dengan password sementara dan wajib menggantinya saat login pertama.
+                    </p>
+                  </div>
+                </div>
 
-                {/* Email */}
-                <div className="mb-3 space-y-1">
-                  <label className="text-[11px] font-semibold uppercase text-[var(--y-text-mute)]">
+                <div className="mb-4 space-y-1.5">
+                  <label htmlFor="collaborator-email" className="text-[11px] font-bold uppercase tracking-wide text-[var(--y-text-dim)]">
                     Email <span className="text-[var(--y-danger)]">*</span>
                   </label>
                   <input
+                    id="collaborator-email"
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="afifu@gmail.com"
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="nama@instansi.go.id"
+                    autoComplete="email"
                     required
                     autoFocus
                     disabled={submitting}
-                    className="y-focus h-10 w-full rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm text-[var(--y-text)] outline-none disabled:opacity-60"
+                    className="y-focus h-11 w-full rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] px-3.5 text-sm text-[var(--y-text)] outline-none transition-colors placeholder:text-[var(--y-text-mute)] focus:border-[var(--y-primary)] disabled:opacity-60"
                   />
                 </div>
 
-                {/* Username */}
-                <div className="mb-3 space-y-1">
-                  <label className="text-[11px] font-semibold uppercase text-[var(--y-text-mute)]">
-                    Username (opsional)
+                <div className="mb-4 space-y-1.5">
+                  <label htmlFor="collaborator-username" className="text-[11px] font-bold uppercase tracking-wide text-[var(--y-text-dim)]">
+                    Username <span className="font-normal normal-case text-[var(--y-text-mute)]">(opsional)</span>
                   </label>
                   <input
+                    id="collaborator-username"
                     type="text"
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Auto dari email"
+                    onChange={(event) => setUsername(event.target.value)}
+                    placeholder="Otomatis diambil dari email"
+                    autoComplete="off"
                     disabled={submitting}
-                    className="y-focus h-10 w-full rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm text-[var(--y-text)] outline-none disabled:opacity-60"
+                    className="y-focus h-11 w-full rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] px-3.5 text-sm text-[var(--y-text)] outline-none transition-colors placeholder:text-[var(--y-text-mute)] focus:border-[var(--y-primary)] disabled:opacity-60"
                   />
                 </div>
 
-                {/* Role */}
-                <div className="mb-4 space-y-1">
-                  <label className="text-[11px] font-semibold uppercase text-[var(--y-text-mute)]">
-                    Role
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
+                <fieldset className="mb-5">
+                  <legend className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[var(--y-text-dim)]">
+                    Role akses
+                  </legend>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <RoleOption
                       active={role === "member"}
                       onClick={() => !submitting && setRole("member")}
-                      icon={<Shield size={16} />}
+                      icon={<UserRound size={17} />}
                       label="Member"
-                      desc="Upload + edit assigned doc"
+                      desc="Upload dan edit dokumen yang ditugaskan."
                       disabled={submitting}
                     />
                     <RoleOption
                       active={role === "super_admin"}
-                      onClick={() =>
-                        !submitting && isOwner && setRole("super_admin")
-                      }
-                      icon={<ShieldCheck size={16} />}
+                      onClick={() => !submitting && isOwner && setRole("super_admin")}
+                      icon={<ShieldCheck size={17} />}
                       label="Super Admin"
-                      desc="Full workspace access"
+                      desc="Kelola collaborator dan akun Google Drive."
                       disabled={!isOwner || submitting}
                     />
                   </div>
-                </div>
+                  {!isOwner && (
+                    <p className="mt-2 text-[11px] text-[var(--y-text-mute)]">
+                      Hanya owner yang dapat mengundang Super Admin.
+                    </p>
+                  )}
+                </fieldset>
 
-                {/* Actions */}
-                <div className="flex gap-2">
+                <div className="flex flex-col-reverse gap-2 sm:flex-row">
                   <button
                     type="button"
                     onClick={handleClose}
                     disabled={submitting}
-                    className="inline-flex h-10 flex-1 items-center justify-center rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] text-sm font-semibold text-[var(--y-text-dim)] hover:bg-[var(--y-bg-hover)] disabled:opacity-60"
+                    className="inline-flex h-10 flex-1 items-center justify-center rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm font-semibold text-[var(--y-text-dim)] transition-colors hover:bg-[var(--y-bg-hover)] disabled:opacity-60"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
-                    disabled={submitting || !email}
-                    className="y-gradient-brand inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
+                    disabled={submitting || !email.trim()}
+                    className="y-gradient-brand inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold text-white shadow-sm transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {submitting ? (
-                      <Loader2 size={15} className="animate-spin" />
-                    ) : (
-                      <UserPlus size={15} />
-                    )}
-                    {submitting ? "Mengundang…" : "Undang"}
+                    {submitting ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}
+                    {submitting ? "Mengundang..." : "Undang collaborator"}
                   </button>
                 </div>
               </form>
@@ -826,9 +950,9 @@ function InviteCollaboratorModal({
   );
 }
 
-// =====================================================
-// ROLE OPTION
-// =====================================================
+// -----------------------------------------------------------------------------
+// Role selector option
+// -----------------------------------------------------------------------------
 function RoleOption({
   active,
   onClick,
@@ -849,26 +973,25 @@ function RoleOption({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      aria-pressed={active}
       className={cn(
-        "flex flex-col items-start gap-1 rounded-lg border p-2.5 text-left transition-all",
+        "flex min-h-[104px] w-full flex-col items-start gap-2 rounded-xl border p-3 text-left transition-all",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--y-primary)] focus-visible:ring-offset-2",
+        "focus-visible:ring-offset-[var(--y-bg-elev)]",
         active
-          ? "border-[var(--y-primary)] bg-[rgba(99,102,241,0.1)]"
-          : "border-[var(--y-border)] hover:border-[var(--y-primary)]",
+          ? "border-[var(--y-primary)] bg-[rgba(249,91,47,0.085)] shadow-[0_0_0_1px_var(--y-primary)]"
+          : "border-[var(--y-border)] bg-[var(--y-bg)] hover:border-[var(--y-primary)] hover:bg-[var(--y-bg-hover)]",
         disabled && "cursor-not-allowed opacity-50",
       )}
     >
-      <div
-        className={cn(
-          "text-[var(--y-text-dim)]",
-          active && "text-[var(--y-primary)]",
-        )}
-      >
-        {icon}
-      </div>
-      <div className="text-[12px] font-bold text-[var(--y-text)]">{label}</div>
-      <div className="text-[10px] leading-tight text-[var(--y-text-mute)]">
-        {desc}
-      </div>
+      <span className="flex w-full items-center justify-between gap-2">
+        <span className={cn("text-[var(--y-text-dim)]", active && "text-[var(--y-primary)]")}>
+          {icon}
+        </span>
+        {active && <Check size={15} className="text-[var(--y-primary)]" />}
+      </span>
+      <span className="text-xs font-bold text-[var(--y-text)]">{label}</span>
+      <span className="text-[10px] leading-relaxed text-[var(--y-text-dim)]">{desc}</span>
     </button>
   );
 }
