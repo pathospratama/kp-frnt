@@ -14,17 +14,29 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+<<<<<<< HEAD
   title: "DPRD Cloud — Satu Cloud, Banyak Drive",
   description:
     "Satu cloud virtual, banyak Google Drive di belakangnya. Kelola, kategorikan, dan arsipkan dokumen dengan elegan.",
   keywords: [
     "DPRD Cloud",
+=======
+  title: "Yudit Cloud — Satu Cloud, Banyak Drive",
+  description:
+    "Satu cloud virtual, banyak Google Drive di belakangnya. Kelola, kategorikan, dan arsipkan dokumen dengan elegan.",
+  keywords: [
+    "Yudit Cloud",
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
     "Cloud Storage",
     "Google Drive",
     "File Management",
     "Dokumen",
   ],
+<<<<<<< HEAD
   authors: [{ name: "DPRD Cloud" }],
+=======
+  authors: [{ name: "Yudit Cloud" }],
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   icons: {
     icon:
       "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☁️</text></svg>",
@@ -37,7 +49,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+<<<<<<< HEAD
     <html lang="id" suppressHydrationWarning>
+=======
+    <html lang="id" suppressHydrationWarning className="dark">
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
@@ -46,4 +62,8 @@ export default function RootLayout({
       </body>
     </html>
   );
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9

@@ -1,4 +1,5 @@
 // src/lib/yudit/types.ts
+<<<<<<< HEAD
 export type ViewKey =
   | "files"
   | "monthly"
@@ -11,6 +12,17 @@ export type ViewKey =
 // =====================================================
 // FILE
 // =====================================================
+=======
+export type ViewKey = "files" | "monthly" | "stats" | "drives";
+
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+}
+
+/** Mirror dari ApiFile backend */
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 export interface FileItem {
   id: string;
   name: string;
@@ -21,12 +33,18 @@ export interface FileItem {
   folder_id: string | null;
   folder_name: string | null;
   monthly_folder_id?: string | null;
+<<<<<<< HEAD
 
   // ⭐ Nullable — backend bisa kirim null untuk file legacy
   year: number | null;
   month: number | null;
   day?: number | null;
 
+=======
+  year: number;
+  month: number;
+  day?: number;
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   created_at: string;
   updated_at?: string;
   drive_account_id: string;
@@ -35,6 +53,7 @@ export interface FileItem {
   share_token: string | null;
   share_expires_at?: string | null;
   share_views: number;
+<<<<<<< HEAD
   parent_file_id?: string | null;
   derived_from_operation?: string | null;
 
@@ -55,12 +74,17 @@ export interface FileItem {
 // =====================================================
 // DRIVE
 // =====================================================
+=======
+}
+
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 export interface DriveAccount {
   id: string;
   google_email: string;
   display_name?: string | null;
   slot_index: number;
   is_active: boolean;
+<<<<<<< HEAD
   /** ⭐ NEW — backend filter out yang true, tapi tetap disediakan untuk defensiveness */
   is_deleted?: boolean;
   quota_total: number;
@@ -74,6 +98,12 @@ export interface DriveAccount {
 // =====================================================
 // CATEGORY
 // =====================================================
+=======
+  quota_total: number;
+  quota_used: number;
+}
+
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 export interface Category {
   id: string;
   name: string;
@@ -83,9 +113,12 @@ export interface Category {
   is_builtin: boolean;
 }
 
+<<<<<<< HEAD
 // =====================================================
 // FILTERS
 // =====================================================
+=======
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 export interface Filters {
   year?: number;
   month?: number;
@@ -97,9 +130,12 @@ export interface Filters {
   sort_order?: "asc" | "desc";
 }
 
+<<<<<<< HEAD
 // =====================================================
 // POOL & STATS
 // =====================================================
+=======
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 export interface PoolInfo {
   total: number;
   used: number;
@@ -120,6 +156,7 @@ export interface Stats {
 export interface ShareConfig {
   expires_hours: number | null;
   password: string | null;
+<<<<<<< HEAD
 }
 
 // =====================================================
@@ -225,4 +262,6 @@ export interface DocumentAssignment {
     username: string;
   };
   file?: FileItem;
+=======
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 }

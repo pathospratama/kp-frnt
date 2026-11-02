@@ -1,6 +1,7 @@
 // src/components/yudit/yudit-cloud.tsx
 "use client";
 
+<<<<<<< HEAD
 import { useEffect, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
@@ -14,6 +15,13 @@ import {
   defaultViewForRole,
   canManageWorkspace,
 } from "@/lib/yudit/store";
+=======
+import { useEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { toast } from "sonner";
+
+import { registerToast, useYudit } from "@/lib/yudit/store";
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { LoginView } from "./views/login-view";
@@ -21,6 +29,7 @@ import { FilesView } from "./views/files-view";
 import { MonthlyView } from "./views/monthly-view";
 import { StatsView } from "./views/stats-view";
 import { DrivesView } from "./views/drives-view";
+<<<<<<< HEAD
 import { ConvertView } from "./views/convert-view";
 import { CollaboratorsView } from "./views/collaborators-view";
 import { MyTasksView } from "./views/my-tasks-view";
@@ -203,18 +212,35 @@ function ViewRouter({ view }: { view: string }) {
 export function YuditCloud() {
   const isAuthenticated = useYudit((s) => s.isAuthenticated);
   const user = useYudit((s) => s.user);
+=======
+import { PreviewModal } from "./modals/preview-modal";
+import { ShareModal } from "./modals/share-modal";
+import { CategoryManagerModal } from "./modals/category-manager-modal";
+import { ConfirmDialog } from "./ui/confirm-dialog";
+import { ProgressOverlay } from "./ui/progress-overlay";
+
+export function YuditCloud() {
+  const isAuthenticated = useYudit((s) => s.isAuthenticated);
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   const currentView = useYudit((s) => s.currentView);
   const setView = useYudit((s) => s.setView);
   const bootstrapAuth = useYudit((s) => s.bootstrapAuth);
   const fetchFiles = useYudit((s) => s.fetchFiles);
   const fetchDrives = useYudit((s) => s.fetchDrives);
   const fetchCategories = useYudit((s) => s.fetchCategories);
+<<<<<<< HEAD
   const fetchCollaborators = useYudit((s) => s.fetchCollaborators);
   const fetchConversionOperations = useYudit(
     (s) => s.fetchConversionOperations,
   );
   const fetchConversionJobs = useYudit((s) => s.fetchConversionJobs);
 
+=======
+
+  // =====================================================
+  // REGISTER TOAST BRIDGE
+  // =====================================================
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   useEffect(() => {
     registerToast((msg, type) => {
       if (type === "success") toast.success(msg);
@@ -223,20 +249,36 @@ export function YuditCloud() {
     });
   }, []);
 
+<<<<<<< HEAD
+=======
+  // =====================================================
+  // BOOTSTRAP AUTH dari localStorage
+  // =====================================================
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   useEffect(() => {
     bootstrapAuth();
   }, [bootstrapAuth]);
 
+<<<<<<< HEAD
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!isAuthenticated) return;
 
+=======
+  // =====================================================
+  // HANDLE OAUTH CALLBACK QUERY PARAMS
+  // (dari /drives redirect → /?oauth_success=... atau ?oauth_error=...)
+  // =====================================================
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
     const params = new URLSearchParams(window.location.search);
     const oauthSuccess = params.get("oauth_success");
     const oauthError = params.get("oauth_error");
 
     if (!oauthSuccess && !oauthError) return;
 
+<<<<<<< HEAD
     if (!canManageWorkspace(user)) {
       window.history.replaceState({}, "", "/");
       return;
@@ -244,6 +286,12 @@ export function YuditCloud() {
 
     setView("drives");
 
+=======
+    // Set view ke drives supaya user langsung lihat
+    setView("drives");
+
+    // Tampilkan toast
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
     if (oauthSuccess === "connected") {
       toast.success("Google Drive berhasil dihubungkan!");
     } else if (oauthError) {
@@ -253,6 +301,7 @@ export function YuditCloud() {
         no_refresh_token:
           "Google tidak mengirim refresh token. Coba connect ulang.",
         invalid_state: "Sesi OAuth tidak valid",
+<<<<<<< HEAD
         forbidden:
           "Hanya owner atau super admin yang bisa connect Google Drive.",
         user_not_found: "User tidak ditemukan",
@@ -319,6 +368,34 @@ export function YuditCloud() {
     );
   }
 
+=======
+      };
+      toast.error(
+        errorMessages[oauthError] || `Gagal connect: ${oauthError}`,
+      );
+    }
+
+    // Refresh data drives + pool setelah OAuth
+    fetchDrives();
+
+    // Bersihkan query string dari URL (biar tidak ke-refresh berulang)
+    window.history.replaceState({}, "", "/");
+  }, [setView, fetchDrives]);
+
+  // =====================================================
+  // INITIAL FETCH setelah auth
+  // =====================================================
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetchFiles();
+    fetchDrives();
+    fetchCategories();
+  }, [isAuthenticated, fetchFiles, fetchDrives, fetchCategories]);
+
+  // =====================================================
+  // RENDER: LOGIN PAGE
+  // =====================================================
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen">
@@ -329,18 +406,29 @@ export function YuditCloud() {
     );
   }
 
+<<<<<<< HEAD
+=======
+  // =====================================================
+  // RENDER: MAIN APP
+  // =====================================================
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   return (
     <div className="yudit-ambient relative flex min-h-screen flex-col">
       <div className="relative z-10 flex min-h-screen flex-1">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar />
+<<<<<<< HEAD
 
           {/* ⭐ ADAPTIVE MAIN — pakai .y-container (bukan max-w-6xl) */}
           <main className="flex-1 overflow-y-auto">
             <div className="y-container py-4 sm:py-6 lg:py-8">
               <DriveAuthBanner />
 
+=======
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+            <div className="mx-auto max-w-6xl">
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
               <AnimatePresence mode="wait">
                 <motion.div
                   key={currentView}
@@ -349,7 +437,14 @@ export function YuditCloud() {
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.2 }}
                 >
+<<<<<<< HEAD
                   <ViewRouter view={currentView} />
+=======
+                  {currentView === "files" && <FilesView />}
+                  {currentView === "monthly" && <MonthlyView />}
+                  {currentView === "stats" && <StatsView />}
+                  {currentView === "drives" && <DrivesView />}
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
                 </motion.div>
               </AnimatePresence>
             </div>
@@ -360,10 +455,15 @@ export function YuditCloud() {
       <PreviewModal />
       <ShareModal />
       <CategoryManagerModal />
+<<<<<<< HEAD
       <AssignModalWrapper />
       <ConfirmDialog />
       <ProgressOverlay />
       <EditorMount />
+=======
+      <ConfirmDialog />
+      <ProgressOverlay />
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
     </div>
   );
 }

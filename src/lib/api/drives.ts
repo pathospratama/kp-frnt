@@ -12,8 +12,11 @@ export interface ApiDrive {
   quota_used: number;
   quota_updated_at?: string | null;
   is_active: boolean;
+<<<<<<< HEAD
   /** ⭐ Soft-delete flag — backend filter out, tapi sertakan untuk type safety */
   is_deleted?: boolean;
+=======
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   slot_index: number;
   created_at?: string;
 }
@@ -30,6 +33,7 @@ export interface RefreshQuotaResponse {
   pool: PoolSummary;
 }
 
+<<<<<<< HEAD
 export interface DisconnectDriveResponse {
   message: string;
   soft_delete: boolean;
@@ -39,6 +43,10 @@ export interface DisconnectDriveResponse {
 
 // =====================================================
 // LIST DRIVES (backend excludes soft-deleted)
+=======
+// =====================================================
+// LIST DRIVES
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 // =====================================================
 export async function listDrives(): Promise<ApiDrive[]> {
   const { data } = await api.get<ApiDrive[]>("/drives/");
@@ -54,7 +62,11 @@ export async function getPoolSummary(): Promise<PoolSummary> {
 }
 
 // =====================================================
+<<<<<<< HEAD
 // FORCE REFRESH QUOTA
+=======
+// FORCE REFRESH QUOTA (user trigger manual)
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 // =====================================================
 export async function forceRefreshQuota(): Promise<RefreshQuotaResponse> {
   const { data } = await api.post<RefreshQuotaResponse>("/drives/refresh-quota");
@@ -62,6 +74,7 @@ export async function forceRefreshQuota(): Promise<RefreshQuotaResponse> {
 }
 
 // =====================================================
+<<<<<<< HEAD
 // DISCONNECT DRIVE (soft-delete support)
 // =====================================================
 /**
@@ -80,4 +93,10 @@ export async function disconnectDrive(
     { params: force ? { force: true } : {} },
   );
   return data;
+=======
+// DISCONNECT DRIVE
+// =====================================================
+export async function disconnectDrive(driveId: string): Promise<void> {
+  await api.delete(`/drives/${driveId}`);
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 }

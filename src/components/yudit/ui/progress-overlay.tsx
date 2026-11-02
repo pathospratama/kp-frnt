@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 // src/components/yudit/ui/progress-overlay.tsx
+=======
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
@@ -8,7 +11,10 @@ import { useYudit } from "@/lib/yudit/store";
 export function ProgressOverlay() {
   const progress = useYudit((s) => s.progress);
   const pct = progress.pct;
+<<<<<<< HEAD
   const isIndeterminate = pct === null;
+=======
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 
   return (
     <AnimatePresence>
@@ -18,10 +24,14 @@ export function ProgressOverlay() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[999] grid place-items-center p-6"
+<<<<<<< HEAD
           style={{
             background: "rgba(10, 15, 31, 0.82)",
             backdropFilter: "blur(8px)",
           }}
+=======
+          style={{ background: "rgba(10, 15, 31, 0.82)", backdropFilter: "blur(8px)" }}
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
@@ -38,6 +48,7 @@ export function ProgressOverlay() {
             <div className="mb-4 truncate text-xs text-[var(--y-text-dim)]">
               {progress.sub}
             </div>
+<<<<<<< HEAD
 
             {/* ============================================
                 PROGRESS BAR
@@ -82,9 +93,34 @@ export function ProgressOverlay() {
                 {pct}%
               </div>
             )}
+=======
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--y-bg)]">
+              <motion.div
+                className="h-full rounded-full"
+                style={{
+                  background: "linear-gradient(90deg, var(--y-primary), var(--y-accent))",
+                }}
+                animate={{
+                  width:
+                    pct === null
+                      ? ["20%", "60%", "85%", "60%"]
+                      : `${pct}%`,
+                }}
+                transition={
+                  pct === null
+                    ? { duration: 1.4, repeat: Infinity, ease: "easeInOut" }
+                    : { duration: 0.3 }
+                }
+              />
+            </div>
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
           </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
   );
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9

@@ -7,7 +7,11 @@ import { motion } from "framer-motion";
 import { Cloud, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
 // =====================================================
+<<<<<<< HEAD
 // REDIRECT HANDLER — support popup & same-window flow
+=======
+// REDIRECT HANDLER (dibungkus Suspense karena pakai useSearchParams)
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 // =====================================================
 function DrivesRedirectContent() {
   const router = useRouter();
@@ -17,6 +21,7 @@ function DrivesRedirectContent() {
     const success = searchParams.get("success");
     const error = searchParams.get("error");
 
+<<<<<<< HEAD
     // Delay kecil supaya user sempat lihat feedback visual
     const timer = setTimeout(() => {
       // =================================================
@@ -56,6 +61,15 @@ function DrivesRedirectContent() {
       if (success) params.set("oauth_success", success);
       if (error) params.set("oauth_error", error);
 
+=======
+    // Bangun query string untuk diteruskan ke root
+    const params = new URLSearchParams();
+    if (success) params.set("oauth_success", success);
+    if (error) params.set("oauth_error", error);
+
+    // Kasih delay kecil supaya user sempat lihat feedback visual
+    const timer = setTimeout(() => {
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       const query = params.toString();
       router.replace(query ? `/?${query}` : "/");
     }, 800);
@@ -102,6 +116,7 @@ function DrivesRedirectContent() {
       no_refresh_token:
         "Google tidak mengirim refresh token. Coba hapus akses aplikasi di pengaturan Google lalu connect ulang.",
       invalid_state: "Sesi OAuth tidak valid. Coba lagi dari awal.",
+<<<<<<< HEAD
       forbidden:
         "Hanya owner atau super admin yang bisa connect Google Drive.",
       user_not_found: "User tidak ditemukan.",
@@ -109,6 +124,8 @@ function DrivesRedirectContent() {
       exchange_failed: "Gagal menukar kode OAuth. Coba lagi.",
       userinfo_failed: "Gagal mengambil info user dari Google. Coba lagi.",
       save_failed: "Gagal menyimpan akun Drive. Coba lagi.",
+=======
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
     };
 
     return (
@@ -156,20 +173,37 @@ function Shell({ children }: { children: React.ReactNode }) {
         animate={{ opacity: 1, y: 0 }}
         className="y-glass-strong y-glow-soft w-full max-w-md rounded-3xl border border-[var(--y-border)] p-8 text-center"
       >
+<<<<<<< HEAD
+=======
+        {/* Brand */}
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         <div className="mb-6 flex items-center justify-center gap-2.5">
           <div className="y-gradient-brand y-glow-primary grid h-9 w-9 place-items-center rounded-xl">
             <Cloud size={20} className="text-white" fill="currentColor" />
           </div>
           <div className="text-[18px] font-bold tracking-tight text-[var(--y-text)]">
+<<<<<<< HEAD
             DPRD<span className="y-gradient-text">Cloud</span>
           </div>
         </div>
+=======
+            Yudit<span className="y-gradient-text">Cloud</span>
+          </div>
+        </div>
+
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         {children}
       </motion.div>
     </div>
   );
 }
 
+<<<<<<< HEAD
+=======
+// =====================================================
+// LOADING SPINNER
+// =====================================================
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 function Loading({ text }: { text: string }) {
   return (
     <div className="flex items-center justify-center gap-2 text-xs text-[var(--y-text-mute)]">
@@ -179,6 +213,12 @@ function Loading({ text }: { text: string }) {
   );
 }
 
+<<<<<<< HEAD
+=======
+// =====================================================
+// PAGE EXPORT (dengan Suspense boundary)
+// =====================================================
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 export default function DrivesPage() {
   return (
     <Suspense

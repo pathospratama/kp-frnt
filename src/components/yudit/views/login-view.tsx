@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+<<<<<<< HEAD
 import {
   Cloud,
   Mail,
@@ -23,6 +24,14 @@ type Tab = "login" | "register";
 // ⭐ FIX #4: Semua state & form "must_change_password" sudah dipindah
 // ke ForcedPasswordChangeView (dirender dari YuditCloud). File ini
 // sekarang murni untuk login & register saja — tidak ada dead code.
+=======
+import { Cloud, Mail, Lock, User as UserIcon, ArrowRight, Loader2 } from "lucide-react";
+import { useYudit } from "@/lib/yudit/store";
+import { cn } from "@/lib/utils";
+
+type Tab = "login" | "register";
+
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 export function LoginView() {
   const [tab, setTab] = useState<Tab>("login");
   const [email, setEmail] = useState("");
@@ -33,6 +42,7 @@ export function LoginView() {
   const login = useYudit((s) => s.login);
   const register = useYudit((s) => s.register);
 
+<<<<<<< HEAD
   // =====================================================
   // HANDLE LOGIN
   // =====================================================
@@ -46,11 +56,22 @@ export function LoginView() {
       // user.must_change_password = true (dibaca dari store).
     } catch {
       // error sudah di-toast oleh store
+=======
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) return;
+    setLoading(true);
+    try {
+      await login(email, password);
+    } catch {
+      // error sudah di-toast
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
     } finally {
       setLoading(false);
     }
   };
 
+<<<<<<< HEAD
   // =====================================================
   // HANDLE REGISTER
   // =====================================================
@@ -61,6 +82,11 @@ export function LoginView() {
       toast.error("Password minimal 6 karakter");
       return;
     }
+=======
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password || !username) return;
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
     setLoading(true);
     try {
       await register(email, username, password);
@@ -71,13 +97,17 @@ export function LoginView() {
     }
   };
 
+<<<<<<< HEAD
   // =====================================================
   // RENDER: LOGIN / REGISTER
   // =====================================================
+=======
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   return (
     <div className="yudit-ambient relative grid min-h-screen place-items-center overflow-hidden p-5">
       <div
         className="pointer-events-none absolute -left-20 top-10 h-72 w-72 rounded-full opacity-30 blur-3xl"
+<<<<<<< HEAD
         style={{
           background:
             "radial-gradient(circle, var(--y-primary), transparent 70%)",
@@ -89,6 +119,13 @@ export function LoginView() {
           background:
             "radial-gradient(circle, var(--y-accent), transparent 70%)",
         }}
+=======
+        style={{ background: "radial-gradient(circle, var(--y-primary), transparent 70%)" }}
+      />
+      <div
+        className="pointer-events-none absolute -right-20 bottom-10 h-72 w-72 rounded-full opacity-25 blur-3xl"
+        style={{ background: "radial-gradient(circle, var(--y-accent), transparent 70%)" }}
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       />
 
       <motion.div
@@ -101,18 +138,26 @@ export function LoginView() {
           <motion.div
             initial={{ scale: 0.8, rotate: -8 }}
             animate={{ scale: 1, rotate: 0 }}
+<<<<<<< HEAD
             transition={{
               type: "spring",
               stiffness: 200,
               damping: 15,
               delay: 0.1,
             }}
+=======
+            transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.1 }}
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
             className="y-gradient-brand y-glow-primary mb-4 grid h-16 w-16 place-items-center rounded-2xl"
           >
             <Cloud size={32} className="text-white" fill="currentColor" />
           </motion.div>
           <h1 className="text-2xl font-bold tracking-tight text-[var(--y-text)]">
+<<<<<<< HEAD
             DPRD<span className="y-gradient-text">Cloud</span>
+=======
+            Yudit<span className="y-gradient-text">Cloud</span>
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
           </h1>
           <p className="mt-1.5 text-center text-[13px] text-[var(--y-text-dim)]">
             Satu cloud virtual, banyak Google Drive di belakangnya
@@ -126,20 +171,28 @@ export function LoginView() {
               type="button"
               onClick={() => setTab(t)}
               className="relative flex-1 rounded-lg px-4 py-2 text-[13px] font-semibold transition-colors"
+<<<<<<< HEAD
               style={{
                 color: tab === t ? "var(--y-text)" : "var(--y-text-dim)",
               }}
+=======
+              style={{ color: tab === t ? "var(--y-text)" : "var(--y-text-dim)" }}
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
             >
               {tab === t && (
                 <motion.div
                   layoutId="auth-tab"
                   className="absolute inset-0 rounded-lg bg-[var(--y-bg-elev)] shadow-sm"
                   style={{ border: "1px solid var(--y-border-soft)" }}
+<<<<<<< HEAD
                   transition={{
                     type: "spring",
                     stiffness: 350,
                     damping: 30,
                   }}
+=======
+                  transition={{ type: "spring", stiffness: 350, damping: 30 }}
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
                 />
               )}
               <span className="relative z-10">
@@ -221,6 +274,7 @@ export function LoginView() {
             </motion.form>
           )}
         </AnimatePresence>
+<<<<<<< HEAD
 
         {/* Footer hint */}
         <div className="mt-5 text-center text-[11px] text-[var(--y-text-mute)]">
@@ -248,14 +302,19 @@ export function LoginView() {
             </>
           )}
         </div>
+=======
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       </motion.div>
     </div>
   );
 }
 
+<<<<<<< HEAD
 // =====================================================
 // FIELD
 // =====================================================
+=======
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 function Field({
   icon,
   label,
@@ -296,6 +355,7 @@ function Field({
   );
 }
 
+<<<<<<< HEAD
 // =====================================================
 // SUBMIT BUTTON
 // =====================================================
@@ -306,6 +366,9 @@ function SubmitButton({
   label: string;
   loading: boolean;
 }) {
+=======
+function SubmitButton({ label, loading }: { label: string; loading: boolean }) {
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   return (
     <button
       type="submit"

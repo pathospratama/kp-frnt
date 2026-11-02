@@ -1,9 +1,13 @@
+<<<<<<< HEAD
 // src/components/yudit/views/drives-view.tsx
+=======
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 "use client";
 
 import { useState } from "react";
 import { motion } from "framer-motion";
 import {
+<<<<<<< HEAD
   Plus,
   Trash2,
   Mail,
@@ -37,10 +41,32 @@ export function DrivesView() {
   const pool = useYudit((s) => s.pool);
   const fetchDrives = useYudit((s) => s.fetchDrives);
   const fetchFiles = useYudit((s) => s.fetchFiles);
+=======
+  Plus, Trash2, Mail, CheckCircle2, Loader2, RefreshCw,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import { useYudit } from "@/lib/yudit/store";
+import { formatBytes, formatDate } from "@/lib/yudit/utils";
+import { connectGoogleDrive } from "@/lib/api/oauth";
+import { forceRefreshQuota } from "@/lib/api/drives";
+import { cn } from "@/lib/utils";
+
+// Batas opsional — None = unlimited
+const MAX_DRIVES: number | null = null;
+
+
+export function DrivesView() {
+  const drives = useYudit((s) => s.drives);
+  const pool = useYudit((s) => s.pool);
+  const removeDrive = useYudit((s) => s.removeDrive);
+  const fetchDrives = useYudit((s) => s.fetchDrives);
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   const showConfirm = useYudit((s) => s.showConfirm);
 
   const [connecting, setConnecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+<<<<<<< HEAD
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Guard
@@ -84,6 +110,13 @@ export function DrivesView() {
   // =====================================================
   // HANDLERS
   // =====================================================
+=======
+
+  // Cek apakah masih boleh connect
+  const canConnect =
+    MAX_DRIVES === null || drives.length < MAX_DRIVES;
+
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   const handleConnect = async () => {
     if (!canConnect) {
       toast.error(`Maksimal ${MAX_DRIVES} akun Google Drive`);
@@ -94,16 +127,22 @@ export function DrivesView() {
       const res = await connectGoogleDrive();
       if (res.ok) {
         await fetchDrives();
+<<<<<<< HEAD
         await fetchFiles();
+=======
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         toast.success("Akun Google Drive terhubung");
       } else if (res.error === "duplicate_account") {
         toast.error("Akun ini sudah terhubung");
       } else if (res.error === "max_accounts") {
         toast.error("Maksimal akun sudah tercapai");
+<<<<<<< HEAD
       } else if (res.error === "forbidden") {
         toast.error(
           "Hanya owner atau super admin yang bisa connect Google Drive",
         );
+=======
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       } else if (res.error && res.error !== "cancelled") {
         toast.error(`Gagal connect: ${res.error}`);
       }
@@ -116,6 +155,7 @@ export function DrivesView() {
   };
 
   const handleRefreshQuota = async () => {
+<<<<<<< HEAD
     if (refreshing) return;
     setRefreshing(true);
     const toastId = toast.loading("Refreshing quota semua drive…");
@@ -126,11 +166,22 @@ export function DrivesView() {
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Gagal refresh quota";
       toast.error(msg, { id: toastId });
+=======
+    setRefreshing(true);
+    try {
+      await forceRefreshQuota();
+      await fetchDrives();
+      toast.success("Quota berhasil di-refresh");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Gagal refresh quota";
+      toast.error(msg);
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
     } finally {
       setRefreshing(false);
     }
   };
 
+<<<<<<< HEAD
   // ⭐ Flow baru: try no-force → kalau 400 → confirm force → soft-delete
   const handleRemove = async (drive: DriveAccount) => {
     if (deletingId) return; // cegah double-click
@@ -191,20 +242,41 @@ export function DrivesView() {
         setDeletingId((prev) => (prev === drive.id ? null : prev));
       }, 100);
     }
+=======
+  const handleRemove = (id: string, email: string) => {
+    showConfirm(
+      "Hapus akun Drive?",
+      `File yang tersimpan di ${email} tidak akan bisa diakses.`,
+      async () => {
+        try {
+          await removeDrive(id);
+        } catch {
+          // error sudah di-toast
+        }
+      },
+    );
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   };
 
   const pct = pool.total > 0 ? Math.round((pool.used / pool.total) * 100) : 0;
 
+<<<<<<< HEAD
   // Hitung statistik
   const activeDrives = drives.filter((d) => d.is_active).length;
   const inactiveDrives = drives.length - activeDrives;
+=======
+  // Text untuk subtitle
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   const accountsText = MAX_DRIVES
     ? `${drives.length} dari ${MAX_DRIVES} akun terhubung`
     : `${drives.length} akun terhubung`;
 
+<<<<<<< HEAD
   // =====================================================
   // RENDER
   // =====================================================
+=======
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   return (
     <div className="y-anim-fade">
       {/* Header */}
@@ -221,9 +293,15 @@ export function DrivesView() {
         <div className="flex gap-2">
           <button
             onClick={handleRefreshQuota}
+<<<<<<< HEAD
             disabled={refreshing || drives.length === 0}
             title="Refresh quota dari Google"
             className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg-elev)] px-3 text-[13px] font-semibold text-[var(--y-text-dim)] transition-all hover:border-[var(--y-primary)] hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)] disabled:cursor-not-allowed disabled:opacity-60"
+=======
+            disabled={refreshing}
+            title="Refresh quota dari Google"
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg-elev)] px-3 text-[13px] font-semibold text-[var(--y-text-dim)] transition-all hover:border-[var(--y-primary)] hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)] disabled:opacity-60"
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
           >
             {refreshing ? (
               <Loader2 size={15} className="animate-spin" />
@@ -249,6 +327,7 @@ export function DrivesView() {
         </div>
       </div>
 
+<<<<<<< HEAD
       {/* Stats summary */}
       {drives.length > 0 && (
         <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -273,6 +352,8 @@ export function DrivesView() {
         </div>
       )}
 
+=======
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       {/* Pool bar */}
       <div className="mb-5 rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-4">
         <div className="mb-2 flex items-center justify-between">
@@ -295,6 +376,7 @@ export function DrivesView() {
             transition={{ duration: 0.8, ease: "easeOut" }}
           />
         </div>
+<<<<<<< HEAD
         <div className="mt-1.5 flex items-center justify-between text-[11px] text-[var(--y-text-mute)]">
           <span className="tabular-nums">
             {formatBytes(pool.used)} terpakai
@@ -493,12 +575,123 @@ export function DrivesView() {
       )}
 
       {/* Info card — Tips */}
+=======
+      </div>
+
+      {/* Drive grid */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {drives.map((d, i) => {
+          const dpct =
+            d.quota_total > 0
+              ? Math.min(100, Math.round((d.quota_used / d.quota_total) * 100))
+              : 0;
+          return (
+            <motion.div
+              key={d.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: Math.min(i * 0.03, 0.3) }}
+              className="group relative overflow-hidden rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-5 transition-all hover:-translate-y-0.5 hover:border-[rgba(99,102,241,0.4)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
+            >
+              <div
+                className="absolute inset-x-0 top-0 h-[3px] opacity-0 transition-opacity group-hover:opacity-100"
+                style={{
+                  background:
+                    "linear-gradient(90deg, var(--y-primary), var(--y-accent))",
+                }}
+              />
+              <button
+                onClick={() => handleRemove(d.id, d.google_email)}
+                title="Hapus"
+                className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-lg text-[var(--y-text-mute)] opacity-0 transition-all hover:bg-[rgba(239,68,68,0.15)] hover:text-[var(--y-danger)] group-hover:opacity-100"
+              >
+                <Trash2 size={14} />
+              </button>
+
+              <div className="mb-3.5 flex items-center gap-3">
+                <div className="grid h-11 w-11 place-items-center rounded-xl bg-white">
+                  <GDriveLogo />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-semibold text-[var(--y-text)]">
+                    {d.google_email}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[var(--y-text-mute)]">
+                    <span>Slot #{d.slot_index}</span>
+                    {d.is_active && (
+                      <span className="inline-flex items-center gap-1 text-[var(--y-success)]">
+                        <CheckCircle2 size={11} />
+                        aktif
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-2 h-2 w-full overflow-hidden rounded-full bg-[var(--y-bg)]">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{
+                    background:
+                      dpct > 80
+                        ? "linear-gradient(90deg, var(--y-warn), var(--y-danger))"
+                        : "linear-gradient(90deg, var(--y-primary), var(--y-accent))",
+                  }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${dpct}%` }}
+                  transition={{ duration: 0.8 }}
+                />
+              </div>
+              <div className="flex justify-between text-[11px] text-[var(--y-text-dim)] tabular-nums">
+                <span>{formatBytes(d.quota_used)} terpakai</span>
+                <span>{formatBytes(d.quota_total)} total</span>
+              </div>
+            </motion.div>
+          );
+        })}
+
+        {canConnect && (
+          <motion.button
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: Math.min(drives.length * 0.03, 0.3) }}
+            onClick={handleConnect}
+            disabled={connecting}
+            className={cn(
+              "grid min-h-[180px] place-items-center rounded-2xl border-2 border-dashed border-[var(--y-border)] p-6 text-center transition-all",
+              "hover:border-[var(--y-primary)] hover:bg-[rgba(99,102,241,0.05)] disabled:opacity-60",
+            )}
+          >
+            <div>
+              <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full border border-[var(--y-border)] bg-[var(--y-bg-elev)] text-[var(--y-primary)] transition-transform group-hover:scale-110">
+                {connecting ? (
+                  <Loader2 size={22} className="animate-spin" />
+                ) : (
+                  <Plus size={22} />
+                )}
+              </div>
+              <div className="text-sm font-semibold text-[var(--y-text)]">
+                Hubungkan Google Drive
+              </div>
+              <div className="mt-1 text-xs text-[var(--y-text-mute)]">
+                {MAX_DRIVES
+                  ? `Slot ${drives.length + 1} dari ${MAX_DRIVES}`
+                  : `Tambah akun (tidak terbatas)`}
+              </div>
+            </div>
+          </motion.button>
+        )}
+      </div>
+
+      {/* Info card */}
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       <div className="mt-5 flex items-start gap-3 rounded-2xl border border-[var(--y-border-soft)] bg-[rgba(34,211,238,0.05)] p-4">
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[rgba(34,211,238,0.15)]">
           <Mail size={16} className="text-[var(--y-accent)]" />
         </div>
         <div className="text-[13px] leading-relaxed text-[var(--y-text-dim)]">
           <b className="text-[var(--y-text)]">Storage pool tak terbatas.</b>{" "}
+<<<<<<< HEAD
           Hubungkan sebanyak mungkin akun Google Drive — YuditCloud
           menggabungkan semua kapasitasnya menjadi satu cloud virtual. File
           baru otomatis dialokasikan ke drive dengan ruang tersisa paling
@@ -530,12 +723,18 @@ export function DrivesView() {
           token &amp; refresh token dienkripsi dengan Fernet (AES-128 CBC)
           menggunakan SECRET_KEY Anda. Jangan bagikan SECRET_KEY ke siapa pun.
           Kalau perlu ganti SECRET_KEY, semua drive harus di-reconnect.
+=======
+          Hubungkan sebanyak mungkin akun Google Drive — Yudit Cloud menggabungkan
+          semua kapasitasnya menjadi satu cloud virtual. File baru otomatis
+          dialokasikan ke drive dengan ruang tersisa paling efisien.
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         </div>
       </div>
     </div>
   );
 }
 
+<<<<<<< HEAD
 // =====================================================
 // STAT CHIP
 // =====================================================
@@ -573,6 +772,8 @@ function StatChip({
 // =====================================================
 // GOOGLE DRIVE LOGO
 // =====================================================
+=======
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 function GDriveLogo() {
   return (
     <svg width="22" height="22" viewBox="0 0 87.3 78">

@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+<<<<<<< HEAD
 import {
   CalendarDays,
   ChevronRight,
@@ -9,6 +10,9 @@ import {
   Search,
   X,
 } from "lucide-react";
+=======
+import { CalendarDays, ChevronRight, ChevronsUpDown, Search, X } from "lucide-react";
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 import { useYudit, groupByFolder } from "@/lib/yudit/store";
 import { MONTHS_ID, formatBytes } from "@/lib/yudit/utils";
 import type { FileItem } from "@/lib/yudit/types";
@@ -48,8 +52,12 @@ export function MonthlyView() {
   }, [sortedKeys, grouped, search]);
 
   const totalFiles = filteredKeys.reduce(
+<<<<<<< HEAD
     (s, k) =>
       s + grouped[k].filter((f) => matchSearch(f.name, k, search)).length,
+=======
+    (s, k) => s + grouped[k].filter((f) => matchSearch(f.name, k, search)).length,
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
     0,
   );
 
@@ -57,11 +65,18 @@ export function MonthlyView() {
 
   return (
     <div className="y-anim-fade">
+<<<<<<< HEAD
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-[var(--y-text)]">
             Arsip Per Bulan
           </h1>
+=======
+      {/* Header */}
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-[var(--y-text)]">Arsip Per Bulan</h1>
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
           <p className="text-[13px] text-[var(--y-text-dim)]">
             {filteredKeys.length} folder • {totalFiles} file
           </p>
@@ -75,6 +90,10 @@ export function MonthlyView() {
         </button>
       </div>
 
+<<<<<<< HEAD
+=======
+      {/* Search */}
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       <div className="relative mb-4">
         <Search
           size={16}
@@ -96,6 +115,10 @@ export function MonthlyView() {
         )}
       </div>
 
+<<<<<<< HEAD
+=======
+      {/* Groups */}
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       {filteredKeys.length === 0 ? (
         <EmptyState search={search} />
       ) : (
@@ -154,6 +177,7 @@ function MonthlyGroup({
   return (
     <motion.div
       layout
+<<<<<<< HEAD
       className="overflow-hidden rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] transition-colors hover:border-[rgba(239,68,68,0.3)]"
     >
       <button
@@ -182,6 +206,30 @@ function MonthlyGroup({
         </span>
       </button>
 
+=======
+      className="overflow-hidden rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] transition-colors hover:border-[rgba(99,102,241,0.3)]"
+    >
+      <button
+        onClick={onToggle}
+        className="flex w-full items-center gap-3 border-b border-[var(--y-border-soft)] px-4 py-3.5 text-left transition-colors hover:bg-[rgba(99,102,241,0.06)]"
+        style={{
+          background: isOpen
+            ? "linear-gradient(90deg, rgba(99,102,241,0.1), transparent)"
+            : undefined,
+        }}
+      >
+        <motion.span animate={{ rotate: isOpen ? 90 : 0 }} transition={{ duration: 0.2 }}>
+          <ChevronRight size={16} className="text-[var(--y-text-mute)]" />
+        </motion.span>
+        <div className="grid h-9 w-9 place-items-center rounded-lg bg-[rgba(99,102,241,0.15)]">
+          <CalendarDays size={17} className="text-[var(--y-primary)]" />
+        </div>
+        <span className="flex-1 text-[15px] font-bold text-[var(--y-text)]">{name}</span>
+        <span className="rounded-full border border-[var(--y-border)] bg-[var(--y-bg)] px-3 py-1 text-xs font-semibold text-[var(--y-text-dim)] tabular-nums">
+          {count} file • {formatBytes(totalSize)}
+        </span>
+      </button>
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       <AnimatePresence initial={false}>
         {isOpen && (
           <motion.div
@@ -193,6 +241,7 @@ function MonthlyGroup({
           >
             <div className="flex flex-col gap-0.5 p-2">
               {files.map((f, i) => (
+<<<<<<< HEAD
                 <FileRow
                   key={f.id}
                   file={f}
@@ -200,6 +249,9 @@ function MonthlyGroup({
                   showFolder={false}
                   alwaysShowActions
                 />
+=======
+                <FileRow key={f.id} file={f} index={i} showFolder={false} alwaysShowActions />
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
               ))}
             </div>
           </motion.div>
@@ -211,8 +263,13 @@ function MonthlyGroup({
 
 function EmptyState({ search }: { search: string }) {
   return (
+<<<<<<< HEAD
     <div className="grid place-items-center rounded-2xl border border-dashed border-[var(--y-border)] bg-[var(--y-bg-elev)] py-16 text-center shadow-sm">
       <div className="grid h-16 w-16 place-items-center rounded-2xl bg-[var(--y-bg-hover)]">
+=======
+    <div className="grid place-items-center rounded-2xl border border-dashed border-[var(--y-border)] py-16 text-center">
+      <div className="grid h-16 w-16 place-items-center rounded-2xl bg-[var(--y-bg-elev)]">
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         <CalendarDays size={28} className="text-[var(--y-text-mute)]" />
       </div>
       <div className="mt-3 text-sm font-semibold text-[var(--y-text-dim)]">
@@ -225,4 +282,8 @@ function EmptyState({ search }: { search: string }) {
       </div>
     </div>
   );
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9

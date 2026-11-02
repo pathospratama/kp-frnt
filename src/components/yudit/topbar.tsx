@@ -9,9 +9,12 @@ const TITLES: Record<ViewKey, string> = {
   monthly: "Arsip Per Bulan",
   stats: "Statistik & Analytics",
   drives: "Google Drive Accounts",
+<<<<<<< HEAD
   convert: "File Conversion",
   collaborators: "Collaborators",
   "my-tasks": "Dokumen Saya",
+=======
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 };
 
 export function Topbar() {
@@ -44,12 +47,17 @@ export function Topbar() {
       "Buat folder baru?",
       "Folder khusus akan dibuat untuk mengelompokkan file.",
       () => {
+<<<<<<< HEAD
+=======
+        // demo: just switch to files view
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         useYudit.getState().setView("files");
       },
     );
   };
 
   return (
+<<<<<<< HEAD
     <header className="y-glass sticky top-0 z-30 border-b border-[var(--y-border)]">
       {/* ⭐ y-container — sejajar dengan konten utama */}
       <div className="y-container flex h-16 items-center gap-3">
@@ -96,3 +104,43 @@ export function Topbar() {
     </header>
   );
 }
+=======
+    <header className="y-glass sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-[var(--y-border)] px-4 sm:px-6">
+      <button
+        onClick={() => setSidebarOpen(true)}
+        className="grid h-9 w-9 place-items-center rounded-lg text-[var(--y-text-dim)] transition-colors hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)] lg:hidden"
+        aria-label="Open menu"
+      >
+        <Menu size={18} />
+      </button>
+
+      {/* Breadcrumb */}
+      <nav className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
+        <span className="hidden text-[var(--y-text-mute)] sm:inline">Yudit Cloud</span>
+        <ChevronRight size={14} className="hidden text-[var(--y-text-mute)] sm:inline" />
+        <span className="truncate font-semibold text-[var(--y-text)]">
+          {TITLES[currentView]}
+        </span>
+      </nav>
+
+      {/* Actions */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleNewFolder}
+          className="hidden h-9 items-center gap-2 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg-elev)] px-3 text-[13px] font-semibold text-[var(--y-text)] transition-all hover:border-[var(--y-primary)] hover:bg-[var(--y-bg-hover)] sm:inline-flex"
+        >
+          <FolderPlus size={15} />
+          <span className="hidden md:inline">New Folder</span>
+        </button>
+        <button
+          onClick={triggerUpload}
+          className="y-gradient-brand y-glow-primary inline-flex h-9 items-center gap-2 rounded-lg px-3.5 text-[13px] font-semibold text-white transition-all hover:-translate-y-0.5 sm:px-4"
+        >
+          <Upload size={15} />
+          <span>Upload</span>
+        </button>
+      </div>
+    </header>
+  );
+}
+>>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
