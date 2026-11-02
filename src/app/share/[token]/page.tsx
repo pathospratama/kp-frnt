@@ -166,11 +166,7 @@ export default function SharePage() {
             <Cloud size={20} className="text-white" fill="currentColor" />
           </div>
           <div className="text-[18px] font-bold tracking-tight text-[var(--y-text)]">
-<<<<<<< HEAD
             DPRD<span className="y-gradient-text">Cloud</span>
-=======
-            Yudit<span className="y-gradient-text">Cloud</span>
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
           </div>
         </motion.div>
 
@@ -260,15 +256,7 @@ export default function SharePage() {
                       className="mb-3 grid h-20 w-20 place-items-center rounded-2xl"
                       style={{ background: iconInfo.bg }}
                     >
-<<<<<<< HEAD
                       <iconInfo.Icon size={40} style={{ color: iconInfo.color }} strokeWidth={1.5} />
-=======
-                      <iconInfo.Icon
-                        size={40}
-                        style={{ color: iconInfo.color }}
-                        strokeWidth={1.5}
-                      />
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
                     </div>
                     <div className="text-sm text-[var(--y-text-dim)]">
                       Preview tidak tersedia untuk tipe ini
@@ -280,11 +268,7 @@ export default function SharePage() {
               {/* Action bar */}
               <div className="flex items-center justify-between gap-3 p-5">
                 <div className="text-xs text-[var(--y-text-mute)]">
-<<<<<<< HEAD
                   Dibagikan via DPRD Cloud
-=======
-                  Dibagikan via Yudit Cloud
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
                 </div>
                 <button
                   onClick={handleDownload}
@@ -300,11 +284,7 @@ export default function SharePage() {
 
         {/* Footer */}
         <div className="mt-6 text-center text-xs text-[var(--y-text-mute)]">
-<<<<<<< HEAD
           © {new Date().getFullYear()} DPRD Cloud — Satu cloud, banyak Drive
-=======
-          © {new Date().getFullYear()} Yudit Cloud — Satu cloud, banyak Drive
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         </div>
       </div>
     </div>

@@ -47,13 +47,8 @@ export function Dropzone() {
         className={cn(
           "group flex w-full flex-col items-center rounded-2xl border-2 border-dashed px-5 py-7 text-center transition-all",
           dragover
-<<<<<<< HEAD
             ? "border-[var(--y-primary)] bg-[rgba(239,68,68,0.08)]"
             : "border-[var(--y-border)] bg-[var(--y-bg-elev)] hover:border-[var(--y-primary)] hover:bg-[var(--y-bg-hover)] shadow-sm",
-=======
-            ? "border-[var(--y-primary)] bg-[rgba(99,102,241,0.08)]"
-            : "border-[var(--y-border)] bg-[rgba(17,24,53,0.3)] hover:border-[var(--y-primary)] hover:bg-[rgba(99,102,241,0.05)]",
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         )}
       >
         <div
@@ -62,13 +57,8 @@ export function Dropzone() {
             dragover ? "scale-110" : "group-hover:scale-105",
           )}
           style={{
-<<<<<<< HEAD
             background: "linear-gradient(135deg, rgba(239,68,68,0.1), rgba(249,115,22,0.1))",
             boxShadow: "0 8px 24px rgba(239,68,68,0.15)",
-=======
-            background: "linear-gradient(135deg, rgba(99,102,241,0.2), rgba(34,211,238,0.15))",
-            boxShadow: "0 8px 24px var(--y-primary-glow)",
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
           }}
         >
           <UploadCloud size={26} className="text-[var(--y-primary)]" />
@@ -93,8 +83,4 @@ export function Dropzone() {
       </button>
     </motion.div>
   );
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9

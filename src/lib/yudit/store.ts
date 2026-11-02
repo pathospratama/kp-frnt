@@ -4,7 +4,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-<<<<<<< HEAD
 import type {
   DriveAccount,
   FileItem,
@@ -19,19 +18,13 @@ import type {
   Collaborator,
   EditorMode,
 } from "./types";
-=======
-import type { DriveAccount, FileItem, Filters, PoolInfo, User, ViewKey } from "./types";
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 import * as authApi from "@/lib/api/auth";
 import * as filesApi from "@/lib/api/files";
 import * as drivesApi from "@/lib/api/drives";
 import * as catApi from "@/lib/api/categories";
 import * as shareApi from "@/lib/api/share";
-<<<<<<< HEAD
 import * as convApi from "@/lib/api/conversions";
 import * as collabApi from "@/lib/api/collaborators";
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 import {
   clearToken,
   getStoredUser,
@@ -54,7 +47,6 @@ function toast(msg: string, type: "success" | "error" | "info" = "info") {
 }
 
 // =====================================================
-<<<<<<< HEAD
 // UNSUPPORTED OP
 // =====================================================
 interface UnsupportedOp {
@@ -114,33 +106,18 @@ export function canAccessView(user: User | null, view: ViewKey): boolean {
 // STATE INTERFACE
 // =====================================================
 interface YuditState {
-=======
-// STATE INTERFACE
-// =====================================================
-interface YuditState {
-  // auth
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   isAuthenticated: boolean;
   user: User | null;
   authLoading: boolean;
 
-<<<<<<< HEAD
   currentView: ViewKey;
   sidebarOpen: boolean;
 
-=======
-  // views
-  currentView: ViewKey;
-  sidebarOpen: boolean;
-
-  // data
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   drives: DriveAccount[];
   pool: PoolInfo;
   files: FileItem[];
   customCategories: catApi.ApiCategory[];
   defaultCategories: catApi.ApiCategory[];
-<<<<<<< HEAD
   collaborators: Collaborator[];
 
   conversionOperations: ConversionOperationInfo[];
@@ -153,15 +130,6 @@ interface YuditState {
   quotaRefreshing: boolean;
   collaboratorsLoading: boolean;
 
-=======
-
-  // loading flags
-  filesLoading: boolean;
-  drivesLoading: boolean;
-  quotaRefreshing: boolean;   // ← BARU
-
-  // files view state
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   currentCategory: string;
   searchQuery: string;
   monthlySearchQuery: string;
@@ -169,19 +137,12 @@ interface YuditState {
   filterPanelOpen: boolean;
   expandedMonthly: Record<string, boolean>;
 
-<<<<<<< HEAD
   previewFileId: string | null;
   shareFileId: string | null;
   categoryManagerOpen: boolean;
   assignModalOpen: boolean;
   assignModalFileId: string | null;
   editorState: { fileId: string; mode: EditorMode } | null;
-=======
-  // modals
-  previewFileId: string | null;
-  shareFileId: string | null;
-  categoryManagerOpen: boolean;
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   confirmDialog: {
     open: boolean;
     title: string;
@@ -195,7 +156,6 @@ interface YuditState {
     pct: number | null;
   };
 
-<<<<<<< HEAD
   // ⭐ Track drive auth error untuk banner global
   driveAuthError: {
     email: string | null;
@@ -204,15 +164,10 @@ interface YuditState {
   };
 
   // ============ ACTIONS ============
-=======
-  // ============ ACTIONS ============
-  // auth
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, username: string, password: string) => Promise<void>;
   logout: () => void;
   bootstrapAuth: () => void;
-<<<<<<< HEAD
   changePassword: (
     currentPassword: string,
     newPassword: string,
@@ -238,32 +193,10 @@ interface YuditState {
   refreshQuota: () => Promise<void>;
   removeDrive: (id: string) => Promise<void>;
 
-=======
-
-  // views
-  setView: (v: ViewKey) => void;
-  setSidebarOpen: (open: boolean) => void;
-
-  // data fetch
-  fetchFiles: (params?: filesApi.FileListParams) => Promise<void>;
-  fetchDrives: () => Promise<void>;
-  fetchCategories: () => Promise<void>;
-
-  // drives
-  refreshPool: () => Promise<void>;
-  refreshQuota: () => Promise<void>;   // ← BARU: force refresh quota
-  removeDrive: (id: string) => Promise<void>;
-
-  // files
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   uploadFiles: (files: File[]) => Promise<void>;
   deleteFile: (id: string) => Promise<void>;
   updateFileCategory: (id: string, category: string) => Promise<void>;
 
-<<<<<<< HEAD
-=======
-  // filters
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   setCategory: (cat: string) => void;
   setSearch: (q: string) => void;
   setMonthlySearch: (q: string) => void;
@@ -271,18 +204,10 @@ interface YuditState {
   resetFilters: () => void;
   setFilterPanelOpen: (open: boolean) => void;
 
-<<<<<<< HEAD
-=======
-  // monthly
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   toggleMonthly: (key: string) => void;
   collapseAllMonthly: () => void;
   expandAllMonthly: () => void;
 
-<<<<<<< HEAD
-=======
-  // modals
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   openPreview: (id: string) => void;
   closePreview: () => void;
   openShare: (id: string) => void;
@@ -293,10 +218,6 @@ interface YuditState {
   }) => Promise<void>;
   revokeShare: (id: string) => Promise<void>;
 
-<<<<<<< HEAD
-=======
-  // categories
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   setCategoryManagerOpen: (open: boolean) => void;
   addCustomCategory: (
     name: string,
@@ -305,27 +226,20 @@ interface YuditState {
   ) => Promise<void>;
   removeCustomCategory: (id: string) => Promise<void>;
 
-<<<<<<< HEAD
   openAssignModal: (fileId: string) => void;
   closeAssignModal: () => void;
 
   openEditor: (fileId: string, mode?: EditorMode) => void;
   closeEditor: () => void;
 
-=======
-  // ui
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   showConfirm: (title: string, text: string, onConfirm: () => void) => void;
   closeConfirm: () => void;
   showProgress: (label: string, sub: string, pct?: number | null) => void;
   hideProgress: () => void;
-<<<<<<< HEAD
 
   // ⭐ Untuk drive auth error
   setDriveAuthError: (email: string | null, message: string | null) => void;
   clearDriveAuthError: () => void;
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 }
 
 const EMPTY_POOL: PoolInfo = { total: 0, used: 0, free: 0, accounts: 0 };
@@ -336,13 +250,9 @@ const EMPTY_POOL: PoolInfo = { total: 0, used: 0, free: 0, accounts: 0 };
 export const useYudit = create<YuditState>()(
   persist(
     (set, get) => ({
-<<<<<<< HEAD
       // =====================================================
       // INITIAL STATE
       // =====================================================
-=======
-      // ---- initial state ----
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       isAuthenticated: false,
       user: null,
       authLoading: false,
@@ -355,23 +265,17 @@ export const useYudit = create<YuditState>()(
       files: [],
       customCategories: [],
       defaultCategories: [],
-<<<<<<< HEAD
       collaborators: [],
 
       conversionOperations: [],
       conversionUnsupportedOps: [],
       conversionJobs: [],
       converting: false,
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 
       filesLoading: false,
       drivesLoading: false,
       quotaRefreshing: false,
-<<<<<<< HEAD
       collaboratorsLoading: false,
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 
       currentCategory: "all",
       searchQuery: "",
@@ -383,7 +287,6 @@ export const useYudit = create<YuditState>()(
       previewFileId: null,
       shareFileId: null,
       categoryManagerOpen: false,
-<<<<<<< HEAD
       assignModalOpen: false,
       assignModalFileId: null,
       editorState: null,
@@ -392,18 +295,12 @@ export const useYudit = create<YuditState>()(
 
       driveAuthError: { email: null, message: null, lastAt: null },
 
-=======
-      confirmDialog: { open: false, title: "", text: "", onConfirm: null },
-      progress: { open: false, label: "", sub: "", pct: null },
-
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       // =====================================================
       // AUTH
       // =====================================================
       bootstrapAuth: () => {
         const token = getToken();
         const user = getStoredUser<User>();
-<<<<<<< HEAD
         if (!token || !user) {
           set({ isAuthenticated: false, user: null });
           return;
@@ -423,20 +320,12 @@ export const useYudit = create<YuditState>()(
             ? get().currentView
             : targetView,
         });
-=======
-        if (token && user) {
-          set({ isAuthenticated: true, user });
-        } else {
-          set({ isAuthenticated: false, user: null });
-        }
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       },
 
       login: async (email, password) => {
         set({ authLoading: true });
         try {
           const res = await authApi.login({ email, password });
-<<<<<<< HEAD
 
           const role = res.user.role;
           if (role !== "owner" && role !== "super_admin" && role !== "member") {
@@ -471,12 +360,6 @@ export const useYudit = create<YuditState>()(
               "error",
             );
           }
-=======
-          setToken(res.access_token);
-          setStoredUser(res.user);
-          set({ isAuthenticated: true, user: res.user, authLoading: false });
-          toast(`Selamat datang, ${res.user.username}!`, "success");
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         } catch (e) {
           set({ authLoading: false });
           const msg = e instanceof ApiError ? e.detail : "Login gagal";
@@ -489,7 +372,6 @@ export const useYudit = create<YuditState>()(
         set({ authLoading: true });
         try {
           const res = await authApi.register({ email, username, password });
-<<<<<<< HEAD
 
           const role = res.user.role;
           if (role !== "owner" && role !== "super_admin" && role !== "member") {
@@ -517,13 +399,6 @@ export const useYudit = create<YuditState>()(
           });
           toast(
             `Akun berhasil dibuat. Selamat datang, ${user.username}!`,
-=======
-          setToken(res.access_token);
-          setStoredUser(res.user);
-          set({ isAuthenticated: true, user: res.user, authLoading: false });
-          toast(
-            `Akun berhasil dibuat. Selamat datang, ${res.user.username}!`,
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
             "success",
           );
         } catch (e) {
@@ -542,31 +417,24 @@ export const useYudit = create<YuditState>()(
           currentView: "files",
           previewFileId: null,
           shareFileId: null,
-<<<<<<< HEAD
           categoryManagerOpen: false,
           assignModalOpen: false,
           assignModalFileId: null,
           editorState: null,
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
           files: [],
           drives: [],
           pool: EMPTY_POOL,
           customCategories: [],
           defaultCategories: [],
-<<<<<<< HEAD
           collaborators: [],
           conversionOperations: [],
           conversionUnsupportedOps: [],
           conversionJobs: [],
           driveAuthError: { email: null, message: null, lastAt: null },
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         });
         toast("Logout berhasil", "info");
       },
 
-<<<<<<< HEAD
       changePassword: async (currentPassword, newPassword) => {
         try {
           await authApi.changePassword(currentPassword, newPassword);
@@ -589,13 +457,10 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       // =====================================================
       // VIEWS
       // =====================================================
       setView: (v) => {
-<<<<<<< HEAD
         const user = get().user;
 
         if (!canAccessView(user, v)) {
@@ -605,20 +470,6 @@ export const useYudit = create<YuditState>()(
         }
 
         set({ currentView: v, sidebarOpen: false });
-=======
-        set({ currentView: v, sidebarOpen: false });
-        if (v === "files") {
-          const { filters, currentCategory, searchQuery } = get();
-          get().fetchFiles({
-            category: currentCategory !== "all" ? currentCategory : undefined,
-            search: searchQuery || undefined,
-            ...filters,
-          });
-        }
-        if (v === "drives") get().fetchDrives();
-        if (v === "monthly") get().fetchFiles();
-        if (v === "stats") get().fetchFiles();
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       },
 
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -638,23 +489,18 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-<<<<<<< HEAD
       // ⭐ fetchDrives — dengan auto-clear driveAuthError kalau masalah teratasi
       fetchDrives: async () => {
         if (!canManageWorkspace(get().user)) {
           set({ drives: [], pool: EMPTY_POOL, drivesLoading: false });
           return;
         }
-=======
-      fetchDrives: async () => {
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         set({ drivesLoading: true });
         try {
           const [drives, pool] = await Promise.all([
             drivesApi.listDrives(),
             drivesApi.getPoolSummary().catch(() => EMPTY_POOL),
           ]);
-<<<<<<< HEAD
 
           // AUTO-CLEAR driveAuthError kalau drive sudah reconnect atau dihapus
           const currentErr = get().driveAuthError;
@@ -668,16 +514,11 @@ export const useYudit = create<YuditState>()(
             }
           }
 
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
           set({
             drives: drives as DriveAccount[],
             pool: pool as PoolInfo,
             drivesLoading: false,
-<<<<<<< HEAD
             driveAuthError: nextErr,
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
           });
         } catch (e) {
           set({ drivesLoading: false });
@@ -707,7 +548,6 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-<<<<<<< HEAD
       fetchCollaborators: async () => {
         if (!canManageWorkspace(get().user)) {
           set({ collaborators: [], collaboratorsLoading: false });
@@ -828,9 +668,6 @@ export const useYudit = create<YuditState>()(
       // =====================================================
       refreshPool: async () => {
         if (!canManageWorkspace(get().user)) return;
-=======
-      refreshPool: async () => {
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         try {
           const pool = await drivesApi.getPoolSummary();
           set({ pool: pool as PoolInfo });
@@ -839,7 +676,6 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-<<<<<<< HEAD
       refreshQuota: async () => {
         if (!canManageWorkspace(get().user)) {
           toast("Hanya owner atau super admin yang bisa refresh quota", "error");
@@ -849,17 +685,6 @@ export const useYudit = create<YuditState>()(
         set({ quotaRefreshing: true });
         try {
           await drivesApi.forceRefreshQuota();
-=======
-      // =====================================================
-      // REFRESH QUOTA (BARU) — force refresh dari Google
-      // =====================================================
-      refreshQuota: async () => {
-        if (get().quotaRefreshing) return; // prevent double trigger
-        set({ quotaRefreshing: true });
-        try {
-          await drivesApi.forceRefreshQuota();
-          // Refresh data drives + pool setelah refresh quota
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
           await get().fetchDrives();
           toast("Quota berhasil di-refresh", "success");
         } catch (e) {
@@ -872,13 +697,10 @@ export const useYudit = create<YuditState>()(
       },
 
       removeDrive: async (id) => {
-<<<<<<< HEAD
         if (!canManageWorkspace(get().user)) {
           toast("Hanya owner atau super admin yang bisa hapus drive", "error");
           throw new Error("Forbidden");
         }
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         try {
           await drivesApi.disconnectDrive(id);
           toast("Akun Drive dihapus", "success");
@@ -911,13 +733,7 @@ export const useYudit = create<YuditState>()(
         for (const file of fileList) {
           try {
             await filesApi.uploadFile(file, undefined, (pct) => {
-<<<<<<< HEAD
               const overall = Math.round(((done + pct / 100) / total) * 100);
-=======
-              const overall = Math.round(
-                ((done + pct / 100) / total) * 100,
-              );
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
               set({
                 progress: {
                   open: true,
@@ -937,10 +753,6 @@ export const useYudit = create<YuditState>()(
 
         set({ progress: { open: false, label: "", sub: "", pct: null } });
 
-<<<<<<< HEAD
-=======
-        // refresh list + pool
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         const { filters, currentCategory, searchQuery } = get();
         await get().fetchFiles({
           category: currentCategory !== "all" ? currentCategory : undefined,
@@ -957,7 +769,6 @@ export const useYudit = create<YuditState>()(
           toast("File dihapus", "success");
           get().refreshPool();
         } catch (e) {
-<<<<<<< HEAD
           if (e instanceof ApiError && e.isDriveError) {
             const email = e.driveEmail || "Google Drive";
             toast(
@@ -977,21 +788,16 @@ export const useYudit = create<YuditState>()(
             }
             return;
           }
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
           const msg = e instanceof ApiError ? e.detail : "Gagal hapus file";
           toast(msg, "error");
         }
       },
 
       updateFileCategory: async (id, category) => {
-<<<<<<< HEAD
         if (!canManageWorkspace(get().user)) {
           toast("Hanya owner atau super admin yang bisa ubah kategori", "error");
           return;
         }
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         try {
           const res = await filesApi.updateCategory(id, category);
           set((s) => ({
@@ -1128,7 +934,6 @@ export const useYudit = create<YuditState>()(
       },
 
       // =====================================================
-<<<<<<< HEAD
       // ASSIGN
       // =====================================================
       openAssignModal: (fileId) => {
@@ -1169,13 +974,6 @@ export const useYudit = create<YuditState>()(
           toast("Akses ditolak", "error");
           throw new Error("Forbidden");
         }
-=======
-      // CATEGORIES
-      // =====================================================
-      setCategoryManagerOpen: (open) => set({ categoryManagerOpen: open }),
-
-      addCustomCategory: async (name, icon, keywords) => {
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         try {
           await catApi.createCategory({ name, icon, keywords });
           toast(`Kategori "${name}" ditambahkan`, "success");
@@ -1189,13 +987,10 @@ export const useYudit = create<YuditState>()(
       },
 
       removeCustomCategory: async (id) => {
-<<<<<<< HEAD
         if (!canManageWorkspace(get().user)) {
           toast("Akses ditolak", "error");
           return;
         }
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         try {
           await catApi.deleteCategory(id);
           toast("Kategori dihapus", "success");
@@ -1227,7 +1022,6 @@ export const useYudit = create<YuditState>()(
 
       hideProgress: () =>
         set((s) => ({ progress: { ...s.progress, open: false } })),
-<<<<<<< HEAD
 
       // =====================================================
       // DRIVE AUTH ERROR
@@ -1245,8 +1039,6 @@ export const useYudit = create<YuditState>()(
         set({
           driveAuthError: { email: null, message: null, lastAt: null },
         }),
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
     }),
     {
       name: "yudit-cloud-store",
@@ -1254,10 +1046,7 @@ export const useYudit = create<YuditState>()(
         currentView: s.currentView,
         filters: s.filters,
         expandedMonthly: s.expandedMonthly,
-<<<<<<< HEAD
         // Tidak persist driveAuthError — reset setiap reload
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       }),
     },
   ),
@@ -1290,20 +1079,15 @@ export function categoryCounts(
 
 export function availableYears(files: FileItem[]): string[] {
   const set = new Set<string>();
-<<<<<<< HEAD
   files.forEach((f) => {
     if (f.year != null) {
       set.add(String(f.year));
     }
   });
-=======
-  files.forEach((f) => set.add(String(f.year)));
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   return Array.from(set).sort((a, b) => Number(b) - Number(a));
 }
 
 // =====================================================
-<<<<<<< HEAD
 // GLOBAL EVENT LISTENERS
 // =====================================================
 if (typeof window !== "undefined") {
@@ -1340,12 +1124,4 @@ if (typeof window !== "undefined") {
       });
     }
   }) as EventListener);
-=======
-// GLOBAL EVENT LISTENER — unauthorized → logout
-// =====================================================
-if (typeof window !== "undefined") {
-  window.addEventListener("yudit:unauthorized", () => {
-    useYudit.getState().logout();
-  });
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 }

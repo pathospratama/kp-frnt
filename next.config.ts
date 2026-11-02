@@ -1,45 +1,82 @@
-<<<<<<< HEAD
+
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  devIndicators: false,
-
-  reactStrictMode: true,
-
-  poweredByHeader: false,
-};
-
-export default nextConfig;
-=======
-// next.config.ts
-import type { NextConfig } from "next";
+/**
+ * DPRD CLOUD - NEXT.JS CONFIGURATION
+ *
+ * Mendukung:
+ * - Development localhost
+ * - Backend FastAPI lokal
+ * - Backend production (Railway / VPS)
+ * - Optimasi gambar remote
+ * - TypeScript build validation
+ */
 
 const backendUrl = process.env.NEXT_PUBLIC_API_URL || "";
 
-
+/**
+ * Parse URL backend dengan aman.
+ */
 function parseBackendUrl(url: string): {
   protocol: "http" | "https" | null;
   hostname: string | null;
   port: string | null;
 } {
-  if (!url) return { protocol: null, hostname: null, port: null };
+  if (!url.trim()) {
+    return {
+      protocol: null,
+      hostname: null,
+      port: null,
+    };
+  }
+
   try {
     const parsed = new URL(url);
+
+    const protocol = parsed.protocol.replace(":", "");
+
+    if (protocol !== "http" && protocol !== "https") {
+      return {
+        protocol: null,
+        hostname: null,
+        port: null,
+      };
+    }
+
     return {
-      protocol: parsed.protocol.replace(":", "") as "http" | "https",
+      protocol,
       hostname: parsed.hostname,
       port: parsed.port || null,
     };
   } catch {
-    return { protocol: null, hostname: null, port: null };
+    console.warn(
+      "[Next.js Config] NEXT_PUBLIC_API_URL tidak valid:",
+      url
+    );
+
+    return {
+      protocol: null,
+      hostname: null,
+      port: null,
+    };
   }
 }
 
+/**
+ * Backend URL configuration.
+ */
 const backend = parseBackendUrl(backendUrl);
 
+/**
+ * Remote image configuration.
+ */
+const remotePatterns: NonNullable<
+  NextConfig["images"]
+>["remotePatterns"] = [];
 
-const remotePatterns: NonNullable<NextConfig["images"]>["remotePatterns"] = [];
-
+/**
+ * Backend production / custom server.
+ */
 if (backend.protocol && backend.hostname) {
   remotePatterns.push({
     protocol: backend.protocol,
@@ -49,7 +86,9 @@ if (backend.protocol && backend.hostname) {
   });
 }
 
-
+/**
+ * Local development image support.
+ */
 if (!backend.hostname) {
   remotePatterns.push({
     protocol: "http",
@@ -57,22 +96,49 @@ if (!backend.hostname) {
     port: "8000",
     pathname: "/**",
   });
+
+  remotePatterns.push({
+    protocol: "http",
+    hostname: "127.0.0.1",
+    port: "8000",
+    pathname: "/**",
+  });
 }
 
-// =====================================================
-// NEXT CONFIG
-// =====================================================
+/**
+ * Next.js configuration.
+ */
 const nextConfig: NextConfig = {
+  /**
+   * Development indicator.
+   */
+  devIndicators: false,
+
+  /**
+   * React configuration.
+   */
   reactStrictMode: true,
 
+  /**
+   * Disable X-Powered-By header.
+   */
+  poweredByHeader: false,
+
+  /**
+   * TypeScript validation during production build.
+   */
   typescript: {
     ignoreBuildErrors: false,
   },
 
+  /**
+   * Remote image optimization.
+   */
   images: {
     remotePatterns,
+    formats: ["image/avif", "image/webp"],
+    minimumCacheTTL: 60,
   },
 };
 
 export default nextConfig;
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9

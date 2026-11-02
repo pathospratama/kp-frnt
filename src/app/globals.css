@@ -44,31 +44,19 @@
 }
 
 /* ============================================================
-<<<<<<< HEAD
    DPRD CLOUD — LIGHT THEME (WHITE & RED)
-=======
-   YUDIT CLOUD — DARK GLASSMORPHISM THEME
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
    ============================================================ */
 :root {
   --radius: 0.75rem;
 
-<<<<<<< HEAD
   /* Light Theme Base */
-=======
-  /* Light fallback (unused but kept for shadcn compat) */
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   --background: oklch(0.99 0.002 250);
   --foreground: oklch(0.18 0.02 260);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.18 0.02 260);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0.02 260);
-<<<<<<< HEAD
   --primary: oklch(0.6 0.22 25);
-=======
-  --primary: oklch(0.55 0.22 265);
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.96 0.01 250);
   --secondary-foreground: oklch(0.2 0.02 260);
@@ -79,29 +67,19 @@
   --destructive: oklch(0.58 0.24 27);
   --border: oklch(0.9 0.005 250);
   --input: oklch(0.9 0.005 250);
-<<<<<<< HEAD
   --ring: oklch(0.6 0.22 25);
   --chart-1: oklch(0.6 0.22 25);
-=======
-  --ring: oklch(0.55 0.22 265);
-  --chart-1: oklch(0.55 0.22 265);
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   --chart-2: oklch(0.7 0.15 200);
   --chart-3: oklch(0.65 0.2 160);
   --chart-4: oklch(0.78 0.18 80);
   --chart-5: oklch(0.62 0.24 16);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.18 0.02 260);
-<<<<<<< HEAD
   --sidebar-primary: oklch(0.6 0.22 25);
-=======
-  --sidebar-primary: oklch(0.55 0.22 265);
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   --sidebar-primary-foreground: oklch(0.99 0 0);
   --sidebar-accent: oklch(0.96 0.01 250);
   --sidebar-accent-foreground: oklch(0.2 0.02 260);
   --sidebar-border: oklch(0.9 0.005 250);
-<<<<<<< HEAD
   --sidebar-ring: oklch(0.6 0.22 25);
 
   /* DPRD brand tokens (LIGHT RED THEME) */
@@ -119,67 +97,11 @@
   --y-primary-glow: rgba(239, 68, 68, 0.2);
   --y-accent: #f97316;
   --y-accent-glow: rgba(249, 115, 22, 0.15);
-=======
-  --sidebar-ring: oklch(0.55 0.22 265);
-
-  /* Yudit brand tokens (used across the app) */
-  --y-bg: #0a0f1f;
-  --y-bg-elev: #111835;
-  --y-bg-elev-2: #161f3f;
-  --y-bg-hover: #1b2548;
-  --y-border: #232c4d;
-  --y-border-soft: #1a2240;
-  --y-text: #e7ecff;
-  --y-text-dim: #8e9ac4;
-  --y-text-mute: #5c6790;
-  --y-primary: #6366f1;
-  --y-primary-hover: #4f46e5;
-  --y-primary-glow: rgba(99, 102, 241, 0.35);
-  --y-accent: #22d3ee;
-  --y-accent-glow: rgba(34, 211, 238, 0.25);
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   --y-success: #10b981;
   --y-warn: #f59e0b;
   --y-danger: #ef4444;
 }
 
-<<<<<<< HEAD
-=======
-.dark {
-  --background: oklch(0.16 0.02 264);
-  --foreground: oklch(0.97 0.01 250);
-  --card: oklch(0.21 0.025 264);
-  --card-foreground: oklch(0.97 0.01 250);
-  --popover: oklch(0.21 0.025 264);
-  --popover-foreground: oklch(0.97 0.01 250);
-  --primary: oklch(0.62 0.21 266);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.27 0.03 264);
-  --secondary-foreground: oklch(0.97 0.01 250);
-  --muted: oklch(0.25 0.025 264);
-  --muted-foreground: oklch(0.68 0.02 264);
-  --accent: oklch(0.27 0.03 264);
-  --accent-foreground: oklch(0.97 0.01 250);
-  --destructive: oklch(0.68 0.2 22);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.62 0.21 266);
-  --chart-1: oklch(0.62 0.21 266);
-  --chart-2: oklch(0.78 0.15 195);
-  --chart-3: oklch(0.7 0.19 162);
-  --chart-4: oklch(0.8 0.18 80);
-  --chart-5: oklch(0.66 0.24 16);
-  --sidebar: oklch(0.19 0.025 264);
-  --sidebar-foreground: oklch(0.97 0.01 250);
-  --sidebar-primary: oklch(0.62 0.21 266);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.25 0.03 264);
-  --sidebar-accent-foreground: oklch(0.97 0.01 250);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.62 0.21 266);
-}
-
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -196,7 +118,6 @@
 }
 
 /* ============================================================
-<<<<<<< HEAD
    ⭐ ADAPTIVE CONTAINER — Mengisi ruang monitor besar
    ============================================================
    - < 640px  : full width, padding 1rem
@@ -305,9 +226,6 @@
 
 /* ============================================================
    AMBIENT BACKGROUND GLOW (LIGHT MODE)
-=======
-   AMBIENT BACKGROUND GLOW
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
    ============================================================ */
 .yudit-ambient::before {
   content: "";
@@ -316,20 +234,12 @@
   background:
     radial-gradient(
       ellipse 80% 50% at 15% -5%,
-<<<<<<< HEAD
       rgba(239, 68, 68, 0.08),
-=======
-      rgba(99, 102, 241, 0.18),
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       transparent 60%
     ),
     radial-gradient(
       ellipse 70% 50% at 90% 105%,
-<<<<<<< HEAD
       rgba(249, 115, 22, 0.06),
-=======
-      rgba(34, 211, 238, 0.12),
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       transparent 60%
     );
   pointer-events: none;
@@ -337,47 +247,28 @@
 }
 
 /* ============================================================
-<<<<<<< HEAD
    GLASS SURFACES (LIGHT MODE)
    ============================================================ */
 .y-glass {
   background: rgba(255, 255, 255, 0.75);
-=======
-   GLASS SURFACES
-   ============================================================ */
-.y-glass {
-  background: rgba(17, 24, 53, 0.55);
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
 }
 
 .y-glass-strong {
-<<<<<<< HEAD
   background: rgba(255, 255, 255, 0.9);
-=======
-  background: rgba(11, 16, 32, 0.7);
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
 }
 
 .y-surface {
-<<<<<<< HEAD
   background: rgba(255, 255, 255, 0.8);
-=======
-  background: rgba(22, 31, 63, 0.6);
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   border: 1px solid var(--y-border-soft);
 }
 
 .y-surface-hover:hover {
   background: var(--y-bg-hover);
-<<<<<<< HEAD
   border-color: rgba(239, 68, 68, 0.35);
-=======
-  border-color: rgba(99, 102, 241, 0.35);
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 }
 
 /* ============================================================
@@ -395,15 +286,7 @@
 }
 
 .y-gradient-brand-hover:hover {
-<<<<<<< HEAD
   background: linear-gradient(135deg, var(--y-primary-hover), #ea580c);
-=======
-  background: linear-gradient(
-    135deg,
-    var(--y-primary-hover),
-    #0891b2
-  );
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 }
 
 /* ============================================================
@@ -414,30 +297,17 @@
 }
 
 .y-glow-soft {
-<<<<<<< HEAD
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
-=======
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 }
 
 .y-glow-elev {
   box-shadow:
-<<<<<<< HEAD
     0 8px 24px rgba(0, 0, 0, 0.05),
     0 0 0 1px rgba(239, 68, 68, 0.12);
 }
 
 /* ============================================================
    SCROLLBAR (LIGHT MODE)
-=======
-    0 8px 24px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(99, 102, 241, 0.12);
-}
-
-/* ============================================================
-   SCROLLBAR
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
    ============================================================ */
 ::-webkit-scrollbar {
   width: 10px;
@@ -447,21 +317,13 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-<<<<<<< HEAD
   background: #cbd5e1;
-=======
-  background: var(--y-bg-hover);
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   border-radius: 99px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-<<<<<<< HEAD
   background: #94a3b8;
-=======
-  background: var(--y-border);
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   background-clip: content-box;
 }
 
@@ -527,7 +389,6 @@
 .y-nav-active {
   background: linear-gradient(
     135deg,
-<<<<<<< HEAD
     rgba(239, 68, 68, 0.1),
     rgba(249, 115, 22, 0.05)
   );
@@ -623,21 +484,3 @@
 @media print {
   .docx-preview-container .docx-wrapper > section.docx { box-shadow: none !important; margin: 0 !important; page-break-after: always; }
 }
-=======
-    rgba(99, 102, 241, 0.22),
-    rgba(34, 211, 238, 0.1)
-  );
-  color: var(--y-text);
-  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.3);
-}
-
-/* ============================================================
-   GRID PATTERN (subtle)
-   ============================================================ */
-.y-grid-pattern {
-  background-image:
-    linear-gradient(rgba(99, 102, 241, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(99, 102, 241, 0.04) 1px, transparent 1px);
-  background-size: 32px 32px;
-}
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9

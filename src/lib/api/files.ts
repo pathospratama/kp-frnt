@@ -1,15 +1,8 @@
 // src/lib/api/files.ts
-<<<<<<< HEAD
 import { api, getApiUrl, ApiError } from "./client";
 
 // =====================================================
 // TYPES
-=======
-import { api } from "./client";
-
-// =====================================================
-// TYPES (mirror backend)
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 // =====================================================
 export interface ApiFile {
   id: string;
@@ -119,11 +112,7 @@ export async function listMonthlyFolders(): Promise<MonthlyFolder[]> {
 }
 
 // =====================================================
-<<<<<<< HEAD
 // UPLOAD (⭐ timeout 10 menit untuk file besar)
-=======
-// UPLOAD
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 // =====================================================
 export async function uploadFile(
   file: File,
@@ -141,11 +130,8 @@ export async function uploadFile(
         onProgress(Math.round((e.loaded / e.total) * 100));
       }
     },
-<<<<<<< HEAD
     // ⭐ 10 menit untuk upload file besar (default 120s terlalu pendek)
     timeout: 10 * 60 * 1000,
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   });
   return data;
 }
@@ -196,28 +182,12 @@ export async function reclassify(
 }
 
 // =====================================================
-<<<<<<< HEAD
 // URL HELPERS
 // =====================================================
-=======
-// URL HELPERS (untuk <img>, <video>, download)
-// =====================================================
-import { getApiUrl, getToken } from "./client";
-
-/**
- * Karena endpoint preview/download butuh Authorization header,
- * kita tidak bisa pakai URL langsung di <img src>. Solusinya:
- * - Fetch sebagai blob via axios → object URL
- * - Atau gunakan token di query (TIDAK direkomendasikan)
- *
- * Di sini kita sediakan helper untuk fetch blob.
- */
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 export async function fetchFileBlob(
   fileId: string,
   mode: "preview" | "download" = "preview",
 ): Promise<Blob> {
-<<<<<<< HEAD
   try {
     const res = await api.get(`/files/${fileId}/${mode}`, {
       responseType: "blob",
@@ -236,12 +206,6 @@ export async function fetchFileBlob(
       "Gagal mengunduh file dari server",
     );
   }
-=======
-  const res = await api.get(`/files/${fileId}/${mode}`, {
-    responseType: "blob",
-  });
-  return res.data;
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 }
 
 export function getFilePreviewUrl(fileId: string): string {
@@ -250,8 +214,4 @@ export function getFilePreviewUrl(fileId: string): string {
 
 export function getFileDownloadUrl(fileId: string): string {
   return getApiUrl(`/files/${fileId}/download`);
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9

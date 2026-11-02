@@ -3,7 +3,6 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-<<<<<<< HEAD
 import {
   X,
   Download,
@@ -13,14 +12,10 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
-=======
-import { X, Download, Loader2, FileQuestion } from "lucide-react";
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 
 import { useYudit } from "@/lib/yudit/store";
 import { formatBytes, formatDate, fileIconInfo, extOf } from "@/lib/yudit/utils";
 import { fetchFileBlob } from "@/lib/api/files";
-<<<<<<< HEAD
 import { ApiError } from "@/lib/api/client";
 import { FileIcon } from "../ui/file-icon";
 import { CategoryBadge } from "../ui/category-badge";
@@ -61,11 +56,6 @@ function toPreviewError(e: unknown): PreviewError {
 // =====================================================
 // MAIN MODAL
 // =====================================================
-=======
-import { FileIcon } from "../ui/file-icon";
-import { CategoryBadge } from "../ui/category-badge";
-
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 export function PreviewModal() {
   const previewFileId = useYudit((s) => s.previewFileId);
   const closePreview = useYudit((s) => s.closePreview);
@@ -131,7 +121,6 @@ export function PreviewModal() {
 // =====================================================
 // DOWNLOAD BUTTON
 // =====================================================
-<<<<<<< HEAD
 function DownloadButton({
   fileId,
   filename,
@@ -144,15 +133,6 @@ function DownloadButton({
   const handleDownload = async () => {
     setLoading(true);
     const toastId = toast.loading(`Mengunduh ${filename}…`);
-=======
-function DownloadButton({ fileId, filename }: { fileId: string; filename: string }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleDownload = async () => {
-    setLoading(true);
-    setError(null);
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
     try {
       const blob = await fetchFileBlob(fileId, "download");
       const url = URL.createObjectURL(blob);
@@ -162,7 +142,6 @@ function DownloadButton({ fileId, filename }: { fileId: string; filename: string
       document.body.appendChild(a);
       a.click();
       a.remove();
-<<<<<<< HEAD
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast.success(`"${filename}" berhasil diunduh`, { id: toastId });
     } catch (e) {
@@ -190,13 +169,6 @@ function DownloadButton({ fileId, filename }: { fileId: string; filename: string
       } else {
         toast.error("Gagal download file", { id: toastId });
       }
-=======
-      // Delay revoke supaya browser sempat trigger download
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (e: any) {
-      setError(e?.detail || "Gagal download");
-      setTimeout(() => setError(null), 3000);
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
     } finally {
       setLoading(false);
     }
@@ -207,7 +179,6 @@ function DownloadButton({ fileId, filename }: { fileId: string; filename: string
       onClick={handleDownload}
       disabled={loading}
       className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg-elev)] px-3 text-[13px] font-semibold text-[var(--y-text)] transition-colors hover:bg-[var(--y-bg-hover)] disabled:opacity-60"
-<<<<<<< HEAD
       title="Download"
     >
       {loading ? (
@@ -216,12 +187,6 @@ function DownloadButton({ fileId, filename }: { fileId: string; filename: string
         <Download size={15} />
       )}
       <span className="hidden sm:inline">Download</span>
-=======
-      title={error || "Download"}
-    >
-      {loading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-      <span className="hidden sm:inline">{error || "Download"}</span>
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
     </button>
   );
 }
@@ -234,17 +199,11 @@ function PreviewBody({
 }: {
   file: { id: string; name: string; mime_type: string | null };
 }) {
-<<<<<<< HEAD
   const setView = useYudit((s) => s.setView);
   const closePreview = useYudit((s) => s.closePreview);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<PreviewError | null>(null);
-=======
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 
   useEffect(() => {
     let cancelled = false;
@@ -260,15 +219,9 @@ function PreviewBody({
           setBlobUrl(url);
           setLoading(false);
         }
-<<<<<<< HEAD
       } catch (e) {
         if (!cancelled) {
           setError(toPreviewError(e));
-=======
-      } catch (e: any) {
-        if (!cancelled) {
-          setError(e?.detail || "Gagal memuat preview");
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
           setLoading(false);
         }
       }
@@ -276,18 +229,11 @@ function PreviewBody({
 
     return () => {
       cancelled = true;
-<<<<<<< HEAD
-=======
-      // Jangan revoke terlalu cepat — biarkan browser pakai dulu
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       if (url) setTimeout(() => URL.revokeObjectURL(url!), 500);
     };
   }, [file.id]);
 
-<<<<<<< HEAD
   // Loading
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   if (loading) {
     return (
       <div className="flex flex-col items-center gap-3 text-[var(--y-text-dim)]">
@@ -297,7 +243,6 @@ function PreviewBody({
     );
   }
 
-<<<<<<< HEAD
   // Error state
   if (error) {
     return (
@@ -320,14 +265,6 @@ function PreviewBody({
         />
         <div className="mb-1 text-base font-semibold text-[var(--y-text)]">
           Preview tidak tersedia
-=======
-  if (error || !blobUrl) {
-    return (
-      <div className="text-center">
-        <FileQuestion size={80} className="mx-auto mb-3 text-[var(--y-text-mute)]" />
-        <div className="mb-1 text-base font-semibold text-[var(--y-text)]">
-          {error || "Preview tidak tersedia"}
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
         </div>
         <div className="text-xs text-[var(--y-text-dim)]">
           Klik "Download" untuk mengunduh file
@@ -339,7 +276,6 @@ function PreviewBody({
   return <PreviewContent file={file} url={blobUrl} />;
 }
 
-<<<<<<< HEAD
 // =====================================================
 // ERROR VIEW
 // =====================================================
@@ -396,8 +332,6 @@ function PreviewErrorView({
 // =====================================================
 // PREVIEW CONTENT
 // =====================================================
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 function PreviewContent({
   file,
   url,
@@ -409,10 +343,6 @@ function PreviewContent({
   const mime = file.mime_type || "";
   const info = fileIconInfo(mime, file.name);
 
-<<<<<<< HEAD
-=======
-  // Image
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   if (
     mime.startsWith("image/") ||
     ["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"].includes(ext)
@@ -428,10 +358,6 @@ function PreviewContent({
     );
   }
 
-<<<<<<< HEAD
-=======
-  // Video
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   if (mime.startsWith("video/") || ["mp4", "webm", "mov", "mkv"].includes(ext)) {
     return (
       <motion.video
@@ -445,10 +371,6 @@ function PreviewContent({
     );
   }
 
-<<<<<<< HEAD
-=======
-  // Audio
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   if (mime.startsWith("audio/") || ["mp3", "wav", "flac", "m4a"].includes(ext)) {
     return (
       <motion.div
@@ -458,15 +380,11 @@ function PreviewContent({
       >
         <div className="rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-8">
           <div className="mb-4 flex justify-center">
-<<<<<<< HEAD
             <info.Icon
               size={64}
               style={{ color: info.color }}
               strokeWidth={1.5}
             />
-=======
-            <info.Icon size={64} style={{ color: info.color }} strokeWidth={1.5} />
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
           </div>
           <audio src={url} controls className="w-full" />
         </div>
@@ -474,10 +392,6 @@ function PreviewContent({
     );
   }
 
-<<<<<<< HEAD
-=======
-  // PDF
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   if (ext === "pdf") {
     return (
       <iframe
@@ -488,7 +402,6 @@ function PreviewContent({
     );
   }
 
-<<<<<<< HEAD
   if (
     [
       "txt",
@@ -503,28 +416,16 @@ function PreviewContent({
       "html",
       "css",
     ].includes(ext)
-=======
-  // Text / code
-  if (
-    ["txt", "md", "json", "csv", "xml", "log", "py", "js", "ts", "html", "css"].includes(ext)
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   ) {
     return <TextPreview url={url} name={file.name} />;
   }
 
-<<<<<<< HEAD
   return (
     <div className="text-center">
       <FileQuestion
         size={80}
         className="mx-auto mb-3 text-[var(--y-text-mute)]"
       />
-=======
-  // Fallback
-  return (
-    <div className="text-center">
-      <FileQuestion size={80} className="mx-auto mb-3 text-[var(--y-text-mute)]" />
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       <div className="mb-1 text-base font-semibold text-[var(--y-text)]">
         Preview tidak tersedia untuk tipe ini
       </div>

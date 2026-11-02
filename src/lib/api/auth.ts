@@ -1,7 +1,6 @@
 // src/lib/api/auth.ts
 import { api } from "./client";
 
-<<<<<<< HEAD
 // =====================================================
 // TYPES
 // =====================================================
@@ -15,22 +14,12 @@ export interface ApiUser {
   owner_id: string | null;
   must_change_password?: boolean;
   is_active?: boolean;
-=======
-export interface User {
-  id: string;
-  email: string;
-  username: string;
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 }
 
 export interface AuthResponse {
   access_token: string;
   token_type: string;
-<<<<<<< HEAD
   user: ApiUser;
-=======
-  user: User;
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 }
 
 export interface RegisterPayload {
@@ -44,7 +33,6 @@ export interface LoginPayload {
   password: string;
 }
 
-<<<<<<< HEAD
 export interface ChangePasswordPayload {
   current_password: string;
   new_password: string;
@@ -53,14 +41,11 @@ export interface ChangePasswordPayload {
 // =====================================================
 // AUTH ENDPOINTS
 // =====================================================
-=======
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 export async function login(payload: LoginPayload): Promise<AuthResponse> {
   const { data } = await api.post<AuthResponse>("/auth/login", payload);
   return data;
 }
 
-<<<<<<< HEAD
 export async function register(
   payload: RegisterPayload,
 ): Promise<AuthResponse> {
@@ -81,9 +66,4 @@ export async function changePassword(
     { current_password, new_password },
   );
   return data;
-=======
-export async function register(payload: RegisterPayload): Promise<AuthResponse> {
-  const { data } = await api.post<AuthResponse>("/auth/register", payload);
-  return data;
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 }

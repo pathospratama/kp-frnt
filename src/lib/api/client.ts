@@ -1,29 +1,9 @@
 // src/lib/api/client.ts
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 
-<<<<<<< HEAD
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 if (!API_URL) {
-=======
-// =====================================================
-// API URL dari ENV — TIDAK ADA HARDCODED FALLBACK
-// =====================================================
-// Priority:
-//   1. NEXT_PUBLIC_API_URL (dari .env / Vercel env vars)
-//   2. Throw error di runtime kalau tidak di-set (build akan fail, itu bagus)
-//
-// JANGAN hardcode "http://localhost:8000" di sini.
-// Set di:
-//   - .env.local          → development
-//   - Vercel Dashboard    → production (Settings > Environment Variables)
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
-if (!API_URL) {
-  // Di build time, ini akan warning tapi tidak error.
-  // Di runtime, ini akan throw saat pertama kali API dipanggil.
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   console.warn(
     "[yudit] NEXT_PUBLIC_API_URL is not set. " +
       "Please set it in your environment variables.",
@@ -37,11 +17,7 @@ export const USER_KEY = "yudit_user";
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
-<<<<<<< HEAD
   timeout: 120_000,
-=======
-  timeout: 120_000, // 2 menit — upload file besar
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
   headers: { "Content-Type": "application/json" },
 });
 
@@ -92,26 +68,10 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 });
 
 // =====================================================
-<<<<<<< HEAD
 // HELPERS
 // =====================================================
 
 // Endpoint yang TIDAK boleh trigger auto-logout
-=======
-// RESPONSE INTERCEPTOR
-// =====================================================
-export class ApiError extends Error {
-  status: number;
-  detail: string;
-  constructor(status: number, detail: string) {
-    super(detail);
-    this.status = status;
-    this.detail = detail;
-  }
-}
-
-// Endpoint yang TIDAK boleh trigger auto-logout (public endpoints)
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 const PUBLIC_PATHS = ["/share/", "/auth/login", "/auth/register"];
 
 function isPublicPath(url?: string): boolean {
@@ -119,7 +79,6 @@ function isPublicPath(url?: string): boolean {
   return PUBLIC_PATHS.some((p) => url.includes(p));
 }
 
-<<<<<<< HEAD
 /**
  * Parse error body — bisa JSON object ATAU Blob (dari responseType: "blob").
  */
@@ -210,20 +169,6 @@ api.interceptors.response.use(
       status === 401 &&
       !isPublicPath(url) &&
       !isDriveError &&
-=======
-api.interceptors.response.use(
-  (res) => res,
-  (error: AxiosError<any>) => {
-    const url = error.config?.url;
-
-    // Hanya auto-logout kalau:
-    // 1. Status 401
-    // 2. Bukan public endpoint
-    // 3. Ada token (artinya user sedang login)
-    if (
-      error.response?.status === 401 &&
-      !isPublicPath(url) &&
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
       getToken()
     ) {
       clearToken();
@@ -232,7 +177,6 @@ api.interceptors.response.use(
       }
     }
 
-<<<<<<< HEAD
     // ⭐ Attach extra flags ke error object
     const apiError = new ApiError(status, String(detail));
     if (isDriveError) {
@@ -259,20 +203,6 @@ export class ApiError extends Error {
   }
 }
 
-=======
-    const detail =
-      error.response?.data?.detail ||
-      error.response?.data?.message ||
-      error.message ||
-      "Terjadi kesalahan";
-
-    return Promise.reject(
-      new ApiError(error.response?.status || 0, String(detail)),
-    );
-  },
-);
-
->>>>>>> 8c616f16953e326d6ebb48d2ae07dd1f54cc1be9
 // =====================================================
 // URL HELPER
 // =====================================================
