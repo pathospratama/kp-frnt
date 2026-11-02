@@ -1,28 +1,52 @@
-// src/lib/api/client.ts
+// frontend/src/lib/api/client.ts
+/**
+ * Axios API client.
+ *
+ * Semua URL dibaca dari `process.env.NEXT_PUBLIC_API_URL`.
+ * TIDAK ada hardcode domain.
+ *
+ * Fitur:
+ * - Auto-attach Bearer token
+ * - Auto-logout saat 401 JWT (bukan Drive)
+ * - Deteksi Drive auth error via header & message (CORS-safe)
+ * - Parse error dari Blob & JSON
+ */
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 
+// =====================================================
+// ENV — WAJIB DI-SET
+// =====================================================
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 if (!API_URL) {
-  console.warn(
-    "[yudit] NEXT_PUBLIC_API_URL is not set. " +
-      "Please set it in your environment variables.",
+  // Jangan throw saat build — hanya warn. Throw akan bikin halaman blank.
+  // eslint-disable-next-line no-console
+  console.error(
+    "[yudit/api] ❌ NEXT_PUBLIC_API_URL is not set. " +
+      "Set it in .env.local (dev) or Vercel Environment Variables (prod).",
   );
 }
 
-export const API_BASE_URL = API_URL || "";
+export const API_BASE_URL = (API_URL || "").trim().replace(/\/$/, "");
 
+// =====================================================
+// STORAGE KEYS
+// =====================================================
 export const TOKEN_KEY = "yudit_token";
 export const USER_KEY = "yudit_user";
 
+// =====================================================
+// AXIOS INSTANCE
+// =====================================================
 export const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 120_000,
   headers: { "Content-Type": "application/json" },
+  withCredentials: false, // Bearer token, bukan cookie
 });
 
 // =====================================================
-// TOKEN STORAGE
+// TOKEN & USER STORAGE
 // =====================================================
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -70,8 +94,6 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 // =====================================================
 // HELPERS
 // =====================================================
-
-// Endpoint yang TIDAK boleh trigger auto-logout
 const PUBLIC_PATHS = ["/share/", "/auth/login", "/auth/register"];
 
 function isPublicPath(url?: string): boolean {
@@ -80,20 +102,20 @@ function isPublicPath(url?: string): boolean {
 }
 
 /**
- * Parse error body — bisa JSON object ATAU Blob (dari responseType: "blob").
+ * Extract error detail — handle JSON, string, dan Blob.
  */
-async function extractErrorDetail(data: any): Promise<string> {
+async function extractErrorDetail(data: unknown): Promise<string> {
   if (!data) return "";
   if (typeof data === "string") return data;
   if (typeof data === "object" && !(data instanceof Blob)) {
-    return String(data.detail || data.message || "");
+    const obj = data as Record<string, unknown>;
+    return String(obj.detail || obj.message || "");
   }
-  // Blob → baca sebagai text lalu coba parse JSON
   if (data instanceof Blob) {
     try {
       const text = await data.text();
       try {
-        const json = JSON.parse(text);
+        const json = JSON.parse(text) as { detail?: string; message?: string };
         return String(json?.detail || json?.message || text);
       } catch {
         return text;
@@ -106,34 +128,38 @@ async function extractErrorDetail(data: any): Promise<string> {
 }
 
 /**
- * Deteksi drive auth error dari ISI PESAN.
- *
- * Ini adalah fallback ketika header `X-Drive-Error` terblokir CORS
- * (karena backend belum set `expose_headers`). Sangat penting untuk
- * mencegah auto-logout user ketika hanya token Google Drive yang
- * expired/revoked — JWT user masih valid.
- *
- * Pesan backend yang kita deteksi:
- *  - "... Reconnect Google Drive di menu 'Google Drive' ..."
- *  - "Refresh token Google Drive sudah tidak valid (revoked) ..."
- *  - "Akun Google Drive <email> sudah dinonaktifkan ..."
- *  - "...refresh token revoked..."
+ * Deteksi pesan error Google Drive (fallback CORS-safe).
  */
 function looksLikeDriveAuthMessage(detail: string): boolean {
   if (!detail) return false;
   const lower = detail.toLowerCase();
-  if (lower.includes("reconnect")) return true;
-  if (lower.includes("refresh token")) return true;
-  if (lower.includes("revoked")) return true;
-  if (
-    lower.includes("google drive") &&
-    (lower.includes("tidak valid") ||
-      lower.includes("dinonaktifkan") ||
-      lower.includes("invalid"))
-  ) {
-    return true;
+  return (
+    lower.includes("reconnect") ||
+    lower.includes("refresh token") ||
+    lower.includes("revoked") ||
+    (lower.includes("google drive") &&
+      (lower.includes("tidak valid") ||
+        lower.includes("dinonaktifkan") ||
+        lower.includes("invalid")))
+  );
+}
+
+// =====================================================
+// ApiError CLASS
+// =====================================================
+export class ApiError extends Error {
+  status: number;
+  detail: string;
+  isDriveError?: boolean;
+  driveEmail?: string;
+  driveId?: string;
+
+  constructor(status: number, detail: string) {
+    super(detail);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
   }
-  return false;
 }
 
 // =====================================================
@@ -141,43 +167,44 @@ function looksLikeDriveAuthMessage(detail: string): boolean {
 // =====================================================
 api.interceptors.response.use(
   (res) => res,
-  async (error: AxiosError<any>) => {
+  async (error: AxiosError<unknown>) => {
     const url = error.config?.url;
     const status = error.response?.status || 0;
-    const headers = (error.response?.headers || {}) as Record<string, any>;
+    const headers = (error.response?.headers || {}) as Record<string, string>;
 
-    // ⭐ Extract detail — support Blob & JSON
+    // ⭐ Kalau tidak ada response (network error / CORS / timeout)
+    if (!error.response) {
+      const msg =
+        error.code === "ECONNABORTED"
+          ? "Request timeout — server tidak merespons."
+          : "Tidak bisa terhubung ke server. Periksa koneksi atau CORS.";
+      // eslint-disable-next-line no-console
+      console.error("[yudit/api] Network error:", error.message, url);
+      return Promise.reject(new ApiError(0, msg));
+    }
+
+    // Extract detail
     const detail =
-      (await extractErrorDetail(error.response?.data)) ||
+      (await extractErrorDetail(error.response.data)) ||
       error.message ||
       "Terjadi kesalahan";
 
-    // ⭐ Deteksi drive error — DUA sinyal:
-    //   1. Header (kalau backend expose_headers)
-    //   2. Isi pesan (fallback CORS-safe)
+    // Deteksi drive error
     const headerDriveError =
-      headers["x-drive-error"] === "reconnect_required" ||
-      headers["X-Drive-Error"] === "reconnect_required";
-
+      headers["x-drive-error"] === "reconnect_required";
     const messageDriveError =
       status === 401 && looksLikeDriveAuthMessage(detail);
-
     const isDriveError = headerDriveError || messageDriveError;
 
-    // ⭐ Auto-logout HANYA kalau 401 JWT user (bukan Drive, bukan public)
-    if (
-      status === 401 &&
-      !isPublicPath(url) &&
-      !isDriveError &&
-      getToken()
-    ) {
+    // Auto-logout HANYA kalau 401 JWT (bukan Drive, bukan public)
+    if (status === 401 && !isPublicPath(url) && !isDriveError && getToken()) {
       clearToken();
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("yudit:unauthorized"));
       }
     }
 
-    // ⭐ Attach extra flags ke error object
+    // Attach flags
     const apiError = new ApiError(status, String(detail));
     if (isDriveError) {
       apiError.isDriveError = true;
@@ -189,29 +216,15 @@ api.interceptors.response.use(
   },
 );
 
-export class ApiError extends Error {
-  status: number;
-  detail: string;
-  isDriveError?: boolean;
-  driveEmail?: string;
-  driveId?: string;
-
-  constructor(status: number, detail: string) {
-    super(detail);
-    this.status = status;
-    this.detail = detail;
-  }
-}
-
 // =====================================================
 // URL HELPER
 // =====================================================
 export function getApiUrl(path: string): string {
   if (path.startsWith("http")) return path;
   if (!API_BASE_URL) {
-    throw new Error(
-      "NEXT_PUBLIC_API_URL is not configured. " +
-        "Please set it in your environment variables.",
+    throw new ApiError(
+      0,
+      "NEXT_PUBLIC_API_URL belum diset. Cek Environment Variables di Vercel.",
     );
   }
   return `${API_BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
