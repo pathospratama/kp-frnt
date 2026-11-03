@@ -42,6 +42,7 @@ import {
   removeCollaborator,
 } from "@/lib/api/collaborators";
 import type { Collaborator } from "@/lib/yudit/types";
+import type { EmailDeliveryResult } from "@/lib/api/collaborators";
 import { cn } from "@/lib/utils";
 
 // -----------------------------------------------------------------------------
@@ -151,11 +152,31 @@ export function CollaboratorsView() {
   const handleResetPassword = (collaborator: Collaborator) => {
     showConfirm(
       "Reset password collaborator?",
-      `Password ${collaborator.email} akan dikembalikan ke password sementara 123456 dan wajib diganti saat login berikutnya.`,
+      `Password ${collaborator.email} akan direset menjadi password sementara yang unik dan wajib diganti saat login berikutnya.`,
       async () => {
         try {
-          await updateCollaborator(collaborator.id, { reset_password: true });
-          toast.success("Password collaborator berhasil direset");
+          const result = await updateCollaborator(collaborator.id, { reset_password: true });
+          if (result.email_delivery?.sent) {
+            toast.success("Password direset dan email kredensial diterima oleh Gmail API");
+          } else {
+            const temporaryPassword = result.temporary_password || "";
+            if (temporaryPassword && navigator.clipboard?.writeText) {
+              try {
+                await navigator.clipboard.writeText(temporaryPassword);
+                toast.error(
+                  `Password sudah direset, tetapi email gagal (${result.email_delivery?.code || "unknown"}). Password sementara disalin ke clipboard.`,
+                );
+              } catch {
+                toast.error(
+                  `Password sudah direset tetapi email gagal. Kode: ${result.email_delivery?.code || "unknown"}. Hubungi administrator untuk mengambil kredensial baru.`,
+                );
+              }
+            } else {
+              toast.error(
+                `Password sudah direset tetapi email gagal. Kode: ${result.email_delivery?.code || "unknown"}.`,
+              );
+            }
+          }
           await load();
         } catch (error: any) {
           toast.error(error?.detail || "Gagal mereset password");
@@ -679,7 +700,11 @@ function InviteCollaboratorModal({
   const [username, setUsername] = useState("");
   const [role, setRole] = useState<"member" | "super_admin">("member");
   const [submitting, setSubmitting] = useState(false);
-  const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
+  const [created, setCreated] = useState<{
+    email: string;
+    password: string;
+    emailDelivery: EmailDeliveryResult;
+  } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [copiedAll, setCopiedAll] = useState(false);
 
@@ -718,8 +743,15 @@ function InviteCollaboratorModal({
       setCreated({
         email: result.user.email,
         password: result.temporary_password,
+        emailDelivery: result.email_delivery,
       });
-      toast.success("Collaborator berhasil ditambahkan");
+      if (result.email_delivery?.sent) {
+        toast.success("Collaborator dibuat dan permintaan email diterima oleh Gmail API");
+      } else {
+        toast.error(
+          `Akun dibuat, tetapi email gagal: ${result.email_delivery?.code || "UNKNOWN"} (${result.email_delivery?.stage || "UNKNOWN"}). Kredensial tersedia di dialog ini.`,
+        );
+      }
       await onSuccess();
     } catch (error: any) {
       toast.error(error?.detail || "Gagal menambahkan collaborator");
@@ -817,6 +849,36 @@ function InviteCollaboratorModal({
                       {showPassword ? created.password : "••••••"}
                     </p>
                   </div>
+                </div>
+
+                <div
+                  className={cn(
+                    "mb-3 rounded-xl border p-3 text-xs leading-relaxed",
+                    created.emailDelivery?.sent
+                      ? "border-emerald-500/25 bg-emerald-500/8 text-emerald-700 dark:text-emerald-300"
+                      : "border-red-500/25 bg-red-500/8 text-red-700 dark:text-red-300",
+                  )}
+                  role="status"
+                  aria-live="polite"
+                >
+                  <p className="font-bold">
+                    {created.emailDelivery?.sent
+                      ? "Status email: diterima oleh Gmail API"
+                      : `Status email: gagal (${created.emailDelivery?.code || "UNKNOWN"})`}
+                  </p>
+                  <p className="mt-1">
+                    {created.emailDelivery?.message || "Tidak ada detail dari layanan email."}
+                  </p>
+                  {created.emailDelivery?.request_id && (
+                    <p className="mt-1 break-all font-mono text-[10px] opacity-80">
+                      Request ID: {created.emailDelivery.request_id}
+                    </p>
+                  )}
+                  {created.emailDelivery?.sent && (
+                    <p className="mt-1 text-[10px] opacity-80">
+                      Status ini berarti Gmail API menerima pengiriman, bukan jaminan email masuk Inbox.
+                    </p>
+                  )}
                 </div>
 
                 <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/8 p-3 text-xs leading-relaxed text-[var(--y-warn)]">
