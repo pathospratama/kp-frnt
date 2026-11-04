@@ -1,8 +1,4 @@
 // src/components/yudit/views/collaborators-view.tsx
-// DPRD Cloud — Collaborators UI refresh
-// Fokus: kontras konsisten, theme-aware surfaces, hover/focus terlihat,
-// responsive actions, dan mempertahankan kontrak API/backend yang sudah ada.
-
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -41,17 +37,21 @@ import {
   updateCollaborator,
   removeCollaborator,
 } from "@/lib/api/collaborators";
+import { ApiError } from "@/lib/api/client";
 import type { Collaborator } from "@/lib/yudit/types";
 import type { EmailDeliveryResult } from "@/lib/api/collaborators";
 import { cn } from "@/lib/utils";
 
-// -----------------------------------------------------------------------------
-// Utilities
-// -----------------------------------------------------------------------------
-async function copyText(value: string, successMessage: string): Promise<boolean> {
+// =====================================================
+// UTILS
+// =====================================================
+async function copyText(
+  value: string,
+  successMessage: string,
+): Promise<boolean> {
   try {
     if (!navigator.clipboard?.writeText) {
-      throw new Error("Clipboard API tidak tersedia pada browser ini");
+      throw new Error("Clipboard API tidak tersedia");
     }
     await navigator.clipboard.writeText(value);
     toast.success(successMessage);
@@ -67,9 +67,106 @@ function getInitial(value?: string | null): string {
   return normalized ? normalized.charAt(0).toUpperCase() : "?";
 }
 
-// -----------------------------------------------------------------------------
-// Main view
-// -----------------------------------------------------------------------------
+/**
+ * ⭐ Parse error 400 dari backend menjadi pesan yang jelas untuk user.
+ */
+function parseInviteError(err: unknown): {
+  title: string;
+  message: string;
+  hint?: string;
+} {
+  if (!(err instanceof ApiError)) {
+    return {
+      title: "Gagal Mengundang",
+      message: "Terjadi kesalahan tidak terduga. Coba lagi.",
+    };
+  }
+
+  const detail = err.detail || "";
+  const detailLower = detail.toLowerCase();
+  const status = err.status;
+
+  // ---- 400: Email sudah terdaftar ----
+  if (status === 400 && detailLower.includes("email")) {
+    if (
+      detailLower.includes("sudah terdaftar") ||
+      detailLower.includes("already") ||
+      detailLower.includes("duplicate")
+    ) {
+      return {
+        title: "Email Sudah Terdaftar",
+        message: detail || "Email ini sudah ada di sistem.",
+        hint: "Coba gunakan email lain, atau minta user tersebut login dengan akunnya.",
+      };
+    }
+    if (detailLower.includes("format") || detailLower.includes("valid")) {
+      return {
+        title: "Format Email Tidak Valid",
+        message: detail || "Format email tidak valid.",
+        hint: "Periksa kembali penulisan email (contoh: nama@domain.com).",
+      };
+    }
+  }
+
+  // ---- 400: Role tidak valid ----
+  if (status === 400 && detailLower.includes("role")) {
+    return {
+      title: "Role Tidak Valid",
+      message: detail,
+      hint: "Pilih 'member' atau 'super_admin'.",
+    };
+  }
+
+  // ---- 400: Generic ----
+  if (status === 400) {
+    return {
+      title: "Data Tidak Valid",
+      message: detail || "Data yang dikirim tidak valid.",
+      hint: "Periksa kembali form dan coba lagi.",
+    };
+  }
+
+  // ---- 401: Token expired ----
+  if (status === 401) {
+    return {
+      title: "Sesi Berakhir",
+      message: "Sesi login Anda sudah berakhir. Silakan login ulang.",
+    };
+  }
+
+  // ---- 403: Forbidden ----
+  if (status === 403) {
+    return {
+      title: "Akses Ditolak",
+      message:
+        detail ||
+        "Anda tidak punya izin untuk mengundang collaborator dengan role ini.",
+      hint:
+        detailLower.includes("super_admin")
+          ? "Hanya owner yang bisa membuat super_admin."
+          : "Hubungi owner workspace.",
+    };
+  }
+
+  // ---- 500: Server error ----
+  if (status >= 500) {
+    return {
+      title: "Server Error",
+      message: detail || "Terjadi kesalahan di server. Coba lagi nanti.",
+      hint: "Jika terus terjadi, hubungi administrator.",
+    };
+  }
+
+  // ---- Fallback ----
+  return {
+    title: "Gagal Mengundang",
+    message: detail || "Terjadi kesalahan.",
+  };
+}
+
+// =====================================================
+// MAIN VIEW
+// =====================================================
 export function CollaboratorsView() {
   const user = useYudit((state) => state.user);
   const showConfirm = useYudit((state) => state.showConfirm);
@@ -89,10 +186,10 @@ export function CollaboratorsView() {
       setCollabs(Array.isArray(result) ? result : []);
     } catch (error: unknown) {
       const message =
-        typeof error === "object" && error !== null && "detail" in error
-          ? String((error as { detail?: unknown }).detail || "")
-          : "";
-      toast.error(message || "Gagal memuat daftar collaborator");
+        error instanceof ApiError
+          ? error.detail
+          : "Gagal memuat daftar collaborator";
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -120,9 +217,12 @@ export function CollaboratorsView() {
   const stats = useMemo(
     () => ({
       total: collabs.length,
-      superAdmins: collabs.filter((item) => item.role === "super_admin").length,
+      superAdmins: collabs.filter((item) => item.role === "super_admin")
+        .length,
       active: collabs.filter((item) => item.is_active).length,
-      pendingPassword: collabs.filter((item) => item.must_change_password).length,
+      pendingPassword: collabs.filter(
+        (item) => item.must_change_password,
+      ).length,
     }),
     [collabs],
   );
@@ -139,7 +239,9 @@ export function CollaboratorsView() {
             is_active: !collaborator.is_active,
           });
           toast.success(
-            collaborator.is_active ? "Akun berhasil dinonaktifkan" : "Akun berhasil diaktifkan",
+            collaborator.is_active
+              ? "Akun berhasil dinonaktifkan"
+              : "Akun berhasil diaktifkan",
           );
           await load();
         } catch (error: any) {
@@ -155,9 +257,13 @@ export function CollaboratorsView() {
       `Password ${collaborator.email} akan direset menjadi password sementara yang unik dan wajib diganti saat login berikutnya.`,
       async () => {
         try {
-          const result = await updateCollaborator(collaborator.id, { reset_password: true });
+          const result = await updateCollaborator(collaborator.id, {
+            reset_password: true,
+          });
           if (result.email_delivery?.sent) {
-            toast.success("Password direset dan email kredensial diterima oleh Gmail API");
+            toast.success(
+              "Password direset dan email kredensial diterima oleh Gmail API",
+            );
           } else {
             const temporaryPassword = result.temporary_password || "";
             if (temporaryPassword && navigator.clipboard?.writeText) {
@@ -168,7 +274,7 @@ export function CollaboratorsView() {
                 );
               } catch {
                 toast.error(
-                  `Password sudah direset tetapi email gagal. Kode: ${result.email_delivery?.code || "unknown"}. Hubungi administrator untuk mengambil kredensial baru.`,
+                  `Password sudah direset tetapi email gagal. Kode: ${result.email_delivery?.code || "unknown"}.`,
                 );
               }
             } else {
@@ -186,7 +292,8 @@ export function CollaboratorsView() {
   };
 
   const handleChangeRole = (collaborator: Collaborator) => {
-    const nextRole = collaborator.role === "super_admin" ? "member" : "super_admin";
+    const nextRole =
+      collaborator.role === "super_admin" ? "member" : "super_admin";
     showConfirm(
       `Ubah menjadi ${nextRole === "super_admin" ? "Super Admin" : "Member"}?`,
       nextRole === "super_admin"
@@ -227,9 +334,12 @@ export function CollaboratorsView() {
           <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-[rgba(239,68,68,0.12)]">
             <AlertCircle size={26} className="text-[var(--y-danger)]" />
           </div>
-          <h2 className="mb-2 text-base font-bold text-[var(--y-text)]">Akses Ditolak</h2>
+          <h2 className="mb-2 text-base font-bold text-[var(--y-text)]">
+            Akses Ditolak
+          </h2>
           <p className="text-sm leading-relaxed text-[var(--y-text-dim)]">
-            Hanya owner atau super admin yang dapat mengelola collaborator workspace.
+            Hanya owner atau super admin yang dapat mengelola collaborator
+            workspace.
           </p>
         </div>
       </section>
@@ -237,7 +347,7 @@ export function CollaboratorsView() {
   }
 
   return (
-    <section className="y-anim-fade min-w-0 space-y-5" aria-labelledby="collaborators-title">
+    <section className="y-anim-fade min-w-0 space-y-5">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
@@ -245,7 +355,7 @@ export function CollaboratorsView() {
             <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[rgba(249,91,47,0.12)] text-[var(--y-primary)]">
               <Users size={18} />
             </div>
-            <h1 id="collaborators-title" className="text-xl font-bold tracking-tight text-[var(--y-text)]">
+            <h1 className="text-xl font-bold tracking-tight text-[var(--y-text)]">
               Collaborators
             </h1>
           </div>
@@ -275,7 +385,7 @@ export function CollaboratorsView() {
         </div>
       </div>
 
-      {/* Statistics */}
+      {/* Stats */}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatCard
           label="Total"
@@ -311,7 +421,6 @@ export function CollaboratorsView() {
       <div className="relative">
         <Search
           size={17}
-          aria-hidden="true"
           className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--y-text-mute)]"
         />
         <input
@@ -319,35 +428,17 @@ export function CollaboratorsView() {
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Cari berdasarkan email atau username..."
-          aria-label="Cari collaborator"
           className="y-focus h-11 w-full rounded-xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] pl-10 pr-11 text-sm text-[var(--y-text)] shadow-sm outline-none transition-colors placeholder:text-[var(--y-text-mute)] focus:border-[var(--y-primary)]"
         />
         {search && (
           <button
             type="button"
             onClick={() => setSearch("")}
-            aria-label="Bersihkan pencarian"
-            title="Bersihkan pencarian"
-            className="absolute right-2.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-lg text-[var(--y-text-mute)] transition-colors hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--y-primary)]"
+            className="absolute right-2.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-lg text-[var(--y-text-mute)] transition-colors hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)]"
           >
             <X size={15} />
           </button>
         )}
-      </div>
-
-      {/* Results header */}
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-bold text-[var(--y-text)]">Daftar anggota</h2>
-          <p className="text-xs text-[var(--y-text-mute)]">
-            {search
-              ? `${filtered.length} hasil dari ${collabs.length} collaborator`
-              : `${filtered.length} collaborator terdaftar`}
-          </p>
-        </div>
-        <span className="rounded-full border border-[var(--y-border)] bg-[var(--y-bg-elev)] px-2.5 py-1 text-xs font-semibold tabular-nums text-[var(--y-text-dim)]">
-          {filtered.length} / {collabs.length}
-        </span>
       </div>
 
       {/* List */}
@@ -371,15 +462,7 @@ export function CollaboratorsView() {
               ? "Coba kata kunci email atau username yang berbeda."
               : "Undang anggota tim agar mereka dapat mengakses workspace sesuai role."}
           </p>
-          {search ? (
-            <button
-              type="button"
-              onClick={() => setSearch("")}
-              className="mt-3 rounded-lg px-3 py-2 text-xs font-semibold text-[var(--y-primary)] hover:bg-[var(--y-bg-hover)]"
-            >
-              Hapus pencarian
-            </button>
-          ) : (
+          {!search && (
             <button
               type="button"
               onClick={() => setInviteOpen(true)}
@@ -390,10 +473,8 @@ export function CollaboratorsView() {
           )}
         </div>
       ) : (
-        // IMPORTANT: gunakan surface theme, jangan gunakan rgba navy transparan.
-        // Ini menghindari teks gelap di atas panel abu-abu pada light theme.
         <div className="rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg)] p-2 shadow-sm sm:p-3">
-          <div className="flex flex-col gap-2" aria-busy={loading}>
+          <div className="flex flex-col gap-2">
             {filtered.map((collaborator, index) => (
               <CollaboratorRow
                 key={collaborator.id}
@@ -410,20 +491,28 @@ export function CollaboratorsView() {
         </div>
       )}
 
-      {/* Role explanation */}
+      {/* Role info */}
       <div className="flex items-start gap-3 rounded-2xl border border-[rgba(99,102,241,0.18)] bg-[rgba(99,102,241,0.055)] p-4">
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[rgba(99,102,241,0.12)] text-[#6366f1]">
           <Info size={17} />
         </div>
         <div className="min-w-0 text-xs leading-relaxed text-[var(--y-text-dim)]">
-          <h3 className="font-bold text-[var(--y-text)]">Tentang role collaborator</h3>
+          <h3 className="font-bold text-[var(--y-text)]">
+            Tentang role collaborator
+          </h3>
           <p className="mt-1">
-            <strong className="font-semibold text-[var(--y-warn)]">Super Admin</strong>
-            {" — "}dapat mengelola collaborator, akun Google Drive, dan penugasan dokumen.
+            <strong className="font-semibold text-[var(--y-warn)]">
+              Super Admin
+            </strong>
+            {" — "}dapat mengelola collaborator, akun Google Drive, dan
+            penugasan dokumen.
           </p>
           <p className="mt-0.5">
-            <strong className="font-semibold text-[var(--y-primary)]">Member</strong>
-            {" — "}dapat mengunggah dan mengedit dokumen yang ditugaskan oleh owner atau super admin.
+            <strong className="font-semibold text-[var(--y-primary)]">
+              Member
+            </strong>
+            {" — "}dapat mengunggah dan mengedit dokumen yang ditugaskan oleh
+            owner atau super admin.
           </p>
         </div>
       </div>
@@ -438,9 +527,9 @@ export function CollaboratorsView() {
   );
 }
 
-// -----------------------------------------------------------------------------
-// Stat card
-// -----------------------------------------------------------------------------
+// =====================================================
+// STAT CARD
+// =====================================================
 function StatCard({
   label,
   value,
@@ -463,7 +552,6 @@ function StatCard({
         <span
           className="grid h-8 w-8 shrink-0 place-items-center rounded-xl"
           style={{ backgroundColor: `${color}18`, color }}
-          aria-hidden="true"
         >
           {icon}
         </span>
@@ -471,14 +559,16 @@ function StatCard({
       <div className="text-2xl font-bold leading-none tabular-nums text-[var(--y-text)]">
         {value}
       </div>
-      <p className="mt-2 truncate text-[10px] text-[var(--y-text-mute)]">{helper}</p>
+      <p className="mt-2 truncate text-[10px] text-[var(--y-text-mute)]">
+        {helper}
+      </p>
     </article>
   );
 }
 
-// -----------------------------------------------------------------------------
-// Collaborator row
-// -----------------------------------------------------------------------------
+// =====================================================
+// COLLABORATOR ROW
+// =====================================================
 function CollaboratorRow({
   collab,
   isOwner,
@@ -499,7 +589,10 @@ function CollaboratorRow({
   const [copied, setCopied] = useState(false);
 
   const handleCopyEmail = async () => {
-    const ok = await copyText(collab.email, "Email collaborator berhasil disalin");
+    const ok = await copyText(
+      collab.email,
+      "Email collaborator berhasil disalin",
+    );
     if (ok) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
@@ -508,75 +601,88 @@ function CollaboratorRow({
 
   return (
     <motion.article
-      data-collaborator-row
       initial={{ opacity: 0, y: 5 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.025, 0.2), duration: 0.2 }}
       className={cn(
-        // Surface dan teks memakai token theme yang sama.
         "group flex min-w-0 flex-col gap-3 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-3 shadow-[0_1px_2px_rgba(15,23,42,0.035)] transition-all duration-150",
-        // Hover terang/netral pada light mode, otomatis mengikuti token dark mode.
         "hover:border-[var(--y-primary)] hover:bg-[var(--y-bg-hover)] hover:shadow-sm",
-        "focus-within:border-[var(--y-primary)] focus-within:ring-2 focus-within:ring-[var(--y-primary)]/20",
         !collab.is_active && "opacity-75",
         "sm:flex-row sm:items-center sm:gap-3.5 sm:px-3.5 sm:py-3",
       )}
     >
       <div className="flex min-w-0 items-center gap-3">
-        {/* Avatar */}
         <div
           className={cn(
             "grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold text-white shadow-sm",
-            collab.role === "super_admin" ? "bg-amber-500" : "y-gradient-brand",
+            collab.role === "super_admin"
+              ? "bg-amber-500"
+              : "y-gradient-brand",
             !collab.is_active && "grayscale",
           )}
-          aria-hidden="true"
         >
           {getInitial(collab.username)}
         </div>
 
-        {/* Identity */}
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <h3 className="max-w-full truncate text-sm font-bold text-[var(--y-text)]">
               {collab.username || "Tanpa username"}
             </h3>
             <RoleBadge role={collab.role} />
-            {!collab.is_active && <StatusBadge kind="inactive">NONAKTIF</StatusBadge>}
-            {collab.must_change_password && <StatusBadge kind="warning">PERLU GANTI PW</StatusBadge>}
+            {!collab.is_active && (
+              <StatusBadge kind="inactive">NONAKTIF</StatusBadge>
+            )}
+            {collab.must_change_password && (
+              <StatusBadge kind="warning">PERLU GANTI PW</StatusBadge>
+            )}
           </div>
 
           <button
             type="button"
             onClick={() => void handleCopyEmail()}
-            title="Salin alamat email"
-            aria-label={`Salin email ${collab.email}`}
-            className="group/email mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md text-left text-[11px] text-[var(--y-text-dim)] transition-colors hover:text-[var(--y-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--y-primary)]"
+            className="group/email mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md text-left text-[11px] text-[var(--y-text-dim)] transition-colors hover:text-[var(--y-primary)]"
           >
             <Mail size={11} className="shrink-0" />
-            <span className="max-w-[min(68vw,420px)] truncate">{collab.email}</span>
+            <span className="max-w-[min(68vw,420px)] truncate">
+              {collab.email}
+            </span>
             {copied ? (
               <Check size={11} className="shrink-0 text-[var(--y-success)]" />
             ) : (
-              <Copy size={10} className="shrink-0 opacity-0 transition-opacity group-hover/email:opacity-100 group-focus-visible/email:opacity-100" />
+              <Copy
+                size={10}
+                className="shrink-0 opacity-0 transition-opacity group-hover/email:opacity-100"
+              />
             )}
           </button>
         </div>
       </div>
 
-      {/* Actions are visible on desktop and wrap on small screens. */}
       <div className="grid grid-cols-2 gap-1.5 pl-[52px] sm:ml-auto sm:flex sm:shrink-0 sm:justify-end sm:pl-0">
         {isOwner && (
           <ActionButton
-            label={collab.role === "super_admin" ? "Jadikan Member" : "Jadikan Super Admin"}
+            label={
+              collab.role === "super_admin"
+                ? "Jadikan Member"
+                : "Jadikan Super Admin"
+            }
             onClick={onChangeRole}
             tone="neutral"
           >
-            {collab.role === "super_admin" ? <ShieldAlert size={14} /> : <Shield size={14} />}
+            {collab.role === "super_admin" ? (
+              <ShieldAlert size={14} />
+            ) : (
+              <Shield size={14} />
+            )}
             <span className="sm:hidden">Role</span>
           </ActionButton>
         )}
-        <ActionButton label="Reset password" onClick={onResetPassword} tone="warning">
+        <ActionButton
+          label="Reset password"
+          onClick={onResetPassword}
+          tone="warning"
+        >
           <KeyRound size={14} />
           <span className="sm:hidden">Reset PW</span>
         </ActionButton>
@@ -586,10 +692,16 @@ function CollaboratorRow({
           tone="neutral"
         >
           {collab.is_active ? <UserX size={14} /> : <UserCheck size={14} />}
-          <span className="sm:hidden">{collab.is_active ? "Nonaktifkan" : "Aktifkan"}</span>
+          <span className="sm:hidden">
+            {collab.is_active ? "Nonaktifkan" : "Aktifkan"}
+          </span>
         </ActionButton>
         {isOwner && (
-          <ActionButton label="Hapus collaborator" onClick={onRemove} tone="danger">
+          <ActionButton
+            label="Hapus collaborator"
+            onClick={onRemove}
+            tone="danger"
+          >
             <Trash2 size={14} />
             <span className="sm:hidden">Hapus</span>
           </ActionButton>
@@ -599,9 +711,9 @@ function CollaboratorRow({
   );
 }
 
-// -----------------------------------------------------------------------------
-// Badges
-// -----------------------------------------------------------------------------
+// =====================================================
+// BADGES
+// =====================================================
 export function RoleBadge({ role }: { role: "super_admin" | "member" }) {
   const isSuperAdmin = role === "super_admin";
 
@@ -641,9 +753,9 @@ function StatusBadge({
   );
 }
 
-// -----------------------------------------------------------------------------
-// Action button
-// -----------------------------------------------------------------------------
+// =====================================================
+// ACTION BUTTON
+// =====================================================
 function ActionButton({
   children,
   label,
@@ -672,8 +784,6 @@ function ActionButton({
       aria-label={label}
       className={cn(
         "inline-flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-lg border px-2 text-[11px] font-semibold transition-all",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--y-primary)] focus-visible:ring-offset-2",
-        "focus-visible:ring-offset-[var(--y-bg-elev)]",
         toneClass,
       )}
     >
@@ -682,9 +792,9 @@ function ActionButton({
   );
 }
 
-// -----------------------------------------------------------------------------
-// Invite modal
-// -----------------------------------------------------------------------------
+// =====================================================
+// INVITE MODAL
+// =====================================================
 function InviteCollaboratorModal({
   open,
   onClose,
@@ -708,6 +818,13 @@ function InviteCollaboratorModal({
   const [showPassword, setShowPassword] = useState(false);
   const [copiedAll, setCopiedAll] = useState(false);
 
+  // ⭐ Error state untuk tampil inline (selain toast)
+  const [inlineError, setInlineError] = useState<{
+    title: string;
+    message: string;
+    hint?: string;
+  } | null>(null);
+
   const reset = () => {
     setEmail("");
     setUsername("");
@@ -715,6 +832,7 @@ function InviteCollaboratorModal({
     setCreated(null);
     setShowPassword(false);
     setCopiedAll(false);
+    setInlineError(null);
   };
 
   const handleClose = () => {
@@ -726,10 +844,21 @@ function InviteCollaboratorModal({
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (submitting) return;
+    setInlineError(null);
 
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
       toast.error("Email collaborator wajib diisi");
+      return;
+    }
+
+    // Validasi client-side sederhana
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setInlineError({
+        title: "Format Email Tidak Valid",
+        message: "Email tidak sesuai format standar.",
+        hint: "Contoh: nama@domain.com",
+      });
       return;
     }
 
@@ -746,15 +875,21 @@ function InviteCollaboratorModal({
         emailDelivery: result.email_delivery,
       });
       if (result.email_delivery?.sent) {
-        toast.success("Collaborator dibuat dan permintaan email diterima oleh Gmail API");
+        toast.success(
+          "Collaborator dibuat dan permintaan email diterima oleh Gmail API",
+        );
       } else {
         toast.error(
           `Akun dibuat, tetapi email gagal: ${result.email_delivery?.code || "UNKNOWN"} (${result.email_delivery?.stage || "UNKNOWN"}). Kredensial tersedia di dialog ini.`,
         );
       }
       await onSuccess();
-    } catch (error: any) {
-      toast.error(error?.detail || "Gagal menambahkan collaborator");
+    } catch (err: unknown) {
+      // ⭐ Parse error 400/403 dengan detail yang jelas
+      const parsed = parseInviteError(err);
+      setInlineError(parsed);
+      // Tetap tampilkan toast sebagai feedback utama
+      toast.error(parsed.message, { duration: 8000 });
     } finally {
       setSubmitting(false);
     }
@@ -786,11 +921,13 @@ function InviteCollaboratorModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[998] grid place-items-center overflow-y-auto p-4 sm:p-6"
-          style={{ background: "rgba(15,23,42,0.58)", backdropFilter: "blur(5px)" }}
+          style={{
+            background: "rgba(15,23,42,0.58)",
+            backdropFilter: "blur(5px)",
+          }}
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) handleClose();
           }}
-          role="presentation"
         >
           <motion.div
             initial={{ scale: 0.97, opacity: 0, y: 10 }}
@@ -799,38 +936,42 @@ function InviteCollaboratorModal({
             transition={{ duration: 0.18 }}
             className="y-glass-strong relative my-auto max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-5 shadow-2xl sm:p-6"
             onMouseDown={(event) => event.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="invite-collaborator-title"
           >
             <button
               type="button"
               onClick={handleClose}
               disabled={submitting}
-              aria-label="Tutup dialog"
               className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-lg text-[var(--y-text-mute)] transition-colors hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)] disabled:opacity-50"
             >
               <X size={17} />
             </button>
 
             {created ? (
+              // =====================================================
+              // SUCCESS STATE
+              // =====================================================
               <div>
                 <div className="pr-8 text-center">
                   <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-emerald-500/10 text-[var(--y-success)]">
                     <Check size={27} />
                   </div>
-                  <h2 id="invite-collaborator-title" className="text-base font-bold text-[var(--y-text)]">
+                  <h2 className="text-base font-bold text-[var(--y-text)]">
                     Collaborator ditambahkan
                   </h2>
                   <p className="mb-5 mt-1 text-sm leading-relaxed text-[var(--y-text-dim)]">
-                    Simpan kredensial sementara berikut dan berikan kepada anggota yang diundang.
+                    Simpan kredensial sementara berikut dan berikan kepada
+                    anggota yang diundang.
                   </p>
                 </div>
 
                 <div className="mb-3 space-y-3 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] p-3.5">
                   <div>
-                    <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-[var(--y-text-mute)]">Email</p>
-                    <p className="break-all font-mono text-sm text-[var(--y-text)]">{created.email}</p>
+                    <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-[var(--y-text-mute)]">
+                      Email
+                    </p>
+                    <p className="break-all font-mono text-sm text-[var(--y-text)]">
+                      {created.email}
+                    </p>
                   </div>
                   <div className="border-t border-[var(--y-border-soft)] pt-3">
                     <div className="mb-1 flex items-center justify-between gap-2">
@@ -839,7 +980,9 @@ function InviteCollaboratorModal({
                       </p>
                       <button
                         type="button"
-                        onClick={() => setShowPassword((current) => !current)}
+                        onClick={() =>
+                          setShowPassword((current) => !current)
+                        }
                         className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--y-primary)] hover:underline"
                       >
                         {showPassword ? "Sembunyikan" : "Tampilkan"}
@@ -858,8 +1001,6 @@ function InviteCollaboratorModal({
                       ? "border-emerald-500/25 bg-emerald-500/8 text-emerald-700 dark:text-emerald-300"
                       : "border-red-500/25 bg-red-500/8 text-red-700 dark:text-red-300",
                   )}
-                  role="status"
-                  aria-live="polite"
                 >
                   <p className="font-bold">
                     {created.emailDelivery?.sent
@@ -867,16 +1008,12 @@ function InviteCollaboratorModal({
                       : `Status email: gagal (${created.emailDelivery?.code || "UNKNOWN"})`}
                   </p>
                   <p className="mt-1">
-                    {created.emailDelivery?.message || "Tidak ada detail dari layanan email."}
+                    {created.emailDelivery?.message ||
+                      "Tidak ada detail dari layanan email."}
                   </p>
                   {created.emailDelivery?.request_id && (
                     <p className="mt-1 break-all font-mono text-[10px] opacity-80">
                       Request ID: {created.emailDelivery.request_id}
-                    </p>
-                  )}
-                  {created.emailDelivery?.sent && (
-                    <p className="mt-1 text-[10px] opacity-80">
-                      Status ini berarti Gmail API menerima pengiriman, bukan jaminan email masuk Inbox.
                     </p>
                   )}
                 </div>
@@ -884,7 +1021,8 @@ function InviteCollaboratorModal({
                 <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/8 p-3 text-xs leading-relaxed text-[var(--y-warn)]">
                   <Info size={15} className="mt-0.5 shrink-0" />
                   <p>
-                    Anggota wajib mengganti password sementara setelah berhasil login pertama kali.
+                    Anggota wajib mengganti password sementara setelah
+                    berhasil login pertama kali.
                   </p>
                 </div>
 
@@ -894,7 +1032,14 @@ function InviteCollaboratorModal({
                     onClick={() => void handleCopyCredentials()}
                     className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm font-semibold text-[var(--y-text)] transition-colors hover:bg-[var(--y-bg-hover)]"
                   >
-                    {copiedAll ? <Check size={15} className="text-[var(--y-success)]" /> : <Copy size={15} />}
+                    {copiedAll ? (
+                      <Check
+                        size={15}
+                        className="text-[var(--y-success)]"
+                      />
+                    ) : (
+                      <Copy size={15} />
+                    )}
                     {copiedAll ? "Tersalin" : "Salin kredensial"}
                   </button>
                   <button
@@ -907,23 +1052,65 @@ function InviteCollaboratorModal({
                 </div>
               </div>
             ) : (
+              // =====================================================
+              // FORM STATE
+              // =====================================================
               <form onSubmit={handleSubmit} className="pt-1">
                 <div className="mb-5 flex items-start gap-3 pr-8">
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[rgba(249,91,47,0.12)] text-[var(--y-primary)]">
                     <UserPlus size={19} />
                   </div>
                   <div>
-                    <h2 id="invite-collaborator-title" className="text-base font-bold text-[var(--y-text)]">
+                    <h2 className="text-base font-bold text-[var(--y-text)]">
                       Undang collaborator
                     </h2>
                     <p className="mt-1 text-xs leading-relaxed text-[var(--y-text-dim)]">
-                      Anggota baru akan dibuat dengan password sementara dan wajib menggantinya saat login pertama.
+                      Anggota baru akan dibuat dengan password sementara dan
+                      wajib menggantinya saat login pertama.
                     </p>
                   </div>
                 </div>
 
+                {/* ⭐ INLINE ERROR — tampil jelas kalau ada 400 */}
+                {inlineError && (
+                  <div
+                    className="mb-4 rounded-xl border border-red-500/30 bg-red-500/8 p-3"
+                    role="alert"
+                  >
+                    <div className="flex items-start gap-2">
+                      <AlertCircle
+                        size={15}
+                        className="mt-0.5 shrink-0 text-[var(--y-danger)]"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-[var(--y-danger)]">
+                          {inlineError.title}
+                        </p>
+                        <p className="mt-0.5 text-xs leading-relaxed text-[var(--y-text-dim)]">
+                          {inlineError.message}
+                        </p>
+                        {inlineError.hint && (
+                          <p className="mt-1 text-[11px] italic text-[var(--y-text-mute)]">
+                            💡 {inlineError.hint}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setInlineError(null)}
+                        className="text-[var(--y-text-mute)] hover:text-[var(--y-text)]"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="mb-4 space-y-1.5">
-                  <label htmlFor="collaborator-email" className="text-[11px] font-bold uppercase tracking-wide text-[var(--y-text-dim)]">
+                  <label
+                    htmlFor="collaborator-email"
+                    className="text-[11px] font-bold uppercase tracking-wide text-[var(--y-text-dim)]"
+                  >
                     Email <span className="text-[var(--y-danger)]">*</span>
                   </label>
                   <input
@@ -941,8 +1128,14 @@ function InviteCollaboratorModal({
                 </div>
 
                 <div className="mb-4 space-y-1.5">
-                  <label htmlFor="collaborator-username" className="text-[11px] font-bold uppercase tracking-wide text-[var(--y-text-dim)]">
-                    Username <span className="font-normal normal-case text-[var(--y-text-mute)]">(opsional)</span>
+                  <label
+                    htmlFor="collaborator-username"
+                    className="text-[11px] font-bold uppercase tracking-wide text-[var(--y-text-dim)]"
+                  >
+                    Username{" "}
+                    <span className="font-normal normal-case text-[var(--y-text-mute)]">
+                      (opsional)
+                    </span>
                   </label>
                   <input
                     id="collaborator-username"
@@ -971,7 +1164,9 @@ function InviteCollaboratorModal({
                     />
                     <RoleOption
                       active={role === "super_admin"}
-                      onClick={() => !submitting && isOwner && setRole("super_admin")}
+                      onClick={() =>
+                        !submitting && isOwner && setRole("super_admin")
+                      }
                       icon={<ShieldCheck size={17} />}
                       label="Super Admin"
                       desc="Kelola collaborator dan akun Google Drive."
@@ -999,7 +1194,11 @@ function InviteCollaboratorModal({
                     disabled={submitting || !email.trim()}
                     className="y-gradient-brand inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold text-white shadow-sm transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {submitting ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}
+                    {submitting ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <UserPlus size={15} />
+                    )}
                     {submitting ? "Mengundang..." : "Undang collaborator"}
                   </button>
                 </div>
@@ -1012,9 +1211,9 @@ function InviteCollaboratorModal({
   );
 }
 
-// -----------------------------------------------------------------------------
-// Role selector option
-// -----------------------------------------------------------------------------
+// =====================================================
+// ROLE OPTION
+// =====================================================
 function RoleOption({
   active,
   onClick,
@@ -1038,8 +1237,6 @@ function RoleOption({
       aria-pressed={active}
       className={cn(
         "flex min-h-[104px] w-full flex-col items-start gap-2 rounded-xl border p-3 text-left transition-all",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--y-primary)] focus-visible:ring-offset-2",
-        "focus-visible:ring-offset-[var(--y-bg-elev)]",
         active
           ? "border-[var(--y-primary)] bg-[rgba(249,91,47,0.085)] shadow-[0_0_0_1px_var(--y-primary)]"
           : "border-[var(--y-border)] bg-[var(--y-bg)] hover:border-[var(--y-primary)] hover:bg-[var(--y-bg-hover)]",
@@ -1047,13 +1244,20 @@ function RoleOption({
       )}
     >
       <span className="flex w-full items-center justify-between gap-2">
-        <span className={cn("text-[var(--y-text-dim)]", active && "text-[var(--y-primary)]")}>
+        <span
+          className={cn(
+            "text-[var(--y-text-dim)]",
+            active && "text-[var(--y-primary)]",
+          )}
+        >
           {icon}
         </span>
         {active && <Check size={15} className="text-[var(--y-primary)]" />}
       </span>
       <span className="text-xs font-bold text-[var(--y-text)]">{label}</span>
-      <span className="text-[10px] leading-relaxed text-[var(--y-text-dim)]">{desc}</span>
+      <span className="text-[10px] leading-relaxed text-[var(--y-text-dim)]">
+        {desc}
+      </span>
     </button>
   );
 }
