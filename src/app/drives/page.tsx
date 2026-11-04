@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Cloud, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
+import { broadcastOAuthResult } from "@/lib/oauth-broadcast";
+
 // =====================================================
 // REDIRECT HANDLER — support popup & same-window flow
 // =====================================================
@@ -17,41 +19,35 @@ function DrivesRedirectContent() {
     const success = searchParams.get("success");
     const error = searchParams.get("error");
 
-    // Delay kecil supaya user sempat lihat feedback visual
+    // ⭐ Cek apakah ini popup (ada opener)
+    const isPopup =
+      typeof window !== "undefined" && window.opener !== null;
+
+    if (isPopup) {
+      // ⭐ POPUP FLOW — broadcast via 3 channel sekaligus lalu close
+      // Delay kecil supaya user sempat lihat feedback visual
+      const timer = setTimeout(() => {
+        broadcastOAuthResult({
+          success: !!success,
+          error: error || undefined,
+        });
+
+        // Delay tambahan sebelum close untuk pastikan broadcast
+        // sudah sampai ke parent (hindari race condition)
+        setTimeout(() => {
+          try {
+            window.close();
+          } catch {
+            // COOP block — abaikan, parent sudah terima broadcast
+          }
+        }, 400);
+      }, 700);
+
+      return () => clearTimeout(timer);
+    }
+
+    // ⭐ SAME-WINDOW FLOW — redirect ke root
     const timer = setTimeout(() => {
-      // =================================================
-      // ⭐ POPUP FLOW — kirim postMessage ke parent & close
-      // =================================================
-      let isPopup = false;
-      if (typeof window !== "undefined" && window.opener) {
-        try {
-          isPopup = !window.opener.closed;
-        } catch {
-          // Cross-origin access might throw → assume alive
-          isPopup = true;
-        }
-      }
-
-      if (isPopup && window.opener) {
-        try {
-          window.opener.postMessage(
-            {
-              type: "yudit:oauth",
-              success: !!success,
-              error: error || undefined,
-            },
-            "*",
-          );
-        } catch (err) {
-          console.warn("[oauth] postMessage to opener failed:", err);
-        }
-        window.close();
-        return;
-      }
-
-      // =================================================
-      // SAME-WINDOW FLOW — redirect ke root
-      // =================================================
       const params = new URLSearchParams();
       if (success) params.set("oauth_success", success);
       if (error) params.set("oauth_error", error);
@@ -89,7 +85,7 @@ function DrivesRedirectContent() {
         <p className="mb-6 text-sm text-[var(--y-text-dim)]">
           Akun Google Drive kamu sudah ditambahkan ke storage pool.
         </p>
-        <Loading text="Mengalihkan…" />
+        <Loading text="Menyelesaikan…" />
       </Shell>
     );
   }
@@ -132,7 +128,7 @@ function DrivesRedirectContent() {
         <p className="mb-6 max-w-sm text-sm text-[var(--y-text-dim)]">
           {errorMessages[error] || `Terjadi kesalahan: ${error}`}
         </p>
-        <Loading text="Mengalihkan…" />
+        <Loading text="Menyelesaikan…" />
       </Shell>
     );
   }
