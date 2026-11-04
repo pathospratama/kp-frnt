@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { broadcastOAuthResult } from "@/lib/oauth-broadcast";
 
 export default function OAuthCallbackPage() {
   useEffect(() => {
@@ -9,18 +10,26 @@ export default function OAuthCallbackPage() {
     const success = params.get("success");
     const error = params.get("error");
 
-    const payload = {
-      type: "yudit:oauth",
+    // ⭐ Broadcast via 3 channel sekaligus
+    broadcastOAuthResult({
       success: !!success,
       error: error || undefined,
-    };
+    });
 
+    // Kalau di popup → close. Delay kecil agar broadcast sampai.
     if (window.opener) {
-      window.opener.postMessage(payload, "*");
-      window.close();
+      setTimeout(() => {
+        try {
+          window.close();
+        } catch {
+          // COOP block — abaikan
+        }
+      }, 400);
     } else {
-      // Kalau bukan popup, redirect ke /drives
-      window.location.href = `/drives?${params.toString()}`;
+      // Bukan popup → redirect ke /drives
+      setTimeout(() => {
+        window.location.href = `/drives?${params.toString()}`;
+      }, 400);
     }
   }, []);
 
