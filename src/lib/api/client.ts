@@ -1,4 +1,4 @@
-// frontend/src/lib/api/client.ts
+// src/lib/api/client.ts
 /**
  * Axios API client.
  *
@@ -9,7 +9,7 @@
  * - Auto-attach Bearer token
  * - Auto-logout saat 401 JWT (bukan Drive)
  * - Deteksi Drive auth error via header & message (CORS-safe)
- * - Parse error dari Blob & JSON
+ * - Parse error dari Blob & JSON (termasuk FastAPI validation errors)
  */
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 
@@ -19,7 +19,6 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 if (!API_URL) {
-  // Jangan throw saat build — hanya warn. Throw akan bikin halaman blank.
   // eslint-disable-next-line no-console
   console.error(
     "[yudit/api] ❌ NEXT_PUBLIC_API_URL is not set. " +
@@ -42,7 +41,7 @@ export const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 120_000,
   headers: { "Content-Type": "application/json" },
-  withCredentials: false, // Bearer token, bukan cookie
+  withCredentials: false,
 });
 
 // =====================================================
@@ -102,21 +101,20 @@ function isPublicPath(url?: string): boolean {
 }
 
 /**
- * Extract error detail — handle JSON, string, dan Blob.
+ * ⭐ Extract error detail — handle JSON, string, Blob, dan FastAPI
+ * validation errors (array of {loc, msg, type}).
  */
 async function extractErrorDetail(data: unknown): Promise<string> {
   if (!data) return "";
   if (typeof data === "string") return data;
-  if (typeof data === "object" && !(data instanceof Blob)) {
-    const obj = data as Record<string, unknown>;
-    return String(obj.detail || obj.message || "");
-  }
+
+  // Handle Blob (untuk responseType: 'blob')
   if (data instanceof Blob) {
     try {
       const text = await data.text();
       try {
-        const json = JSON.parse(text) as { detail?: string; message?: string };
-        return String(json?.detail || json?.message || text);
+        const json = JSON.parse(text);
+        return extractErrorDetail(json);
       } catch {
         return text;
       }
@@ -124,12 +122,45 @@ async function extractErrorDetail(data: unknown): Promise<string> {
       return "";
     }
   }
+
+  if (typeof data === "object") {
+    const obj = data as Record<string, unknown>;
+
+    // ⭐ Handle FastAPI validation errors:
+    // {"detail": [{"loc": ["body", "email"], "msg": "value is not a valid email", "type": "..."}]}
+    if (Array.isArray(obj.detail)) {
+      return obj.detail
+        .map((item: any) => {
+          if (typeof item === "string") return item;
+          if (item?.msg) {
+            const loc = Array.isArray(item.loc)
+              ? item.loc.filter((x: any) => typeof x === "string").slice(-1)[0]
+              : "";
+            return loc ? `${loc}: ${item.msg}` : item.msg;
+          }
+          return JSON.stringify(item);
+        })
+        .join("; ");
+    }
+
+    // Handle detail string biasa (FastAPI HTTPException)
+    if (typeof obj.detail === "string") return obj.detail;
+
+    // Handle message string (custom error format)
+    if (typeof obj.message === "string") return obj.message;
+
+    // Fallback: try JSON.stringify supaya tidak hilang
+    try {
+      const str = JSON.stringify(obj);
+      return str.length > 500 ? str.slice(0, 500) + "…" : str;
+    } catch {
+      return "";
+    }
+  }
+
   return "";
 }
 
-/**
- * Deteksi pesan error Google Drive (fallback CORS-safe).
- */
 function looksLikeDriveAuthMessage(detail: string): boolean {
   if (!detail) return false;
   const lower = detail.toLowerCase();
@@ -153,12 +184,15 @@ export class ApiError extends Error {
   isDriveError?: boolean;
   driveEmail?: string;
   driveId?: string;
+  /** ⭐ Kode error spesifik dari backend (kalau ada) */
+  code?: string;
 
-  constructor(status: number, detail: string) {
+  constructor(status: number, detail: string, code?: string) {
     super(detail);
     this.name = "ApiError";
     this.status = status;
     this.detail = detail;
+    this.code = code;
   }
 }
 
@@ -172,7 +206,7 @@ api.interceptors.response.use(
     const status = error.response?.status || 0;
     const headers = (error.response?.headers || {}) as Record<string, string>;
 
-    // ⭐ Kalau tidak ada response (network error / CORS / timeout)
+    // Network error / CORS / timeout
     if (!error.response) {
       const msg =
         error.code === "ECONNABORTED"
@@ -205,7 +239,11 @@ api.interceptors.response.use(
     }
 
     // Attach flags
-    const apiError = new ApiError(status, String(detail));
+    const apiError = new ApiError(
+      status,
+      String(detail),
+      headers["x-error-code"] || undefined,
+    );
     if (isDriveError) {
       apiError.isDriveError = true;
       apiError.driveEmail = headers["x-drive-email"] || "";
