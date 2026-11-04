@@ -14,15 +14,13 @@ import {
 import { useYudit } from "@/lib/yudit/store";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { ApiError } from "@/lib/api/client";
 
 type Tab = "login" | "register";
 
 // =====================================================
 // MAIN COMPONENT
 // =====================================================
-// ⭐ FIX #4: Semua state & form "must_change_password" sudah dipindah
-// ke ForcedPasswordChangeView (dirender dari YuditCloud). File ini
-// sekarang murni untuk login & register saja — tidak ada dead code.
 export function LoginView() {
   const [tab, setTab] = useState<Tab>("login");
   const [email, setEmail] = useState("");
@@ -44,8 +42,19 @@ export function LoginView() {
       await login(email, password);
       // YuditCloud akan auto-render ForcedPasswordChangeView kalau
       // user.must_change_password = true (dibaca dari store).
-    } catch {
-      // error sudah di-toast oleh store
+    } catch (error: any) {
+      // ⭐ Error sudah di-toast oleh store, tapi kita bisa beri
+      // pesan tambahan yang lebih spesifik untuk login.
+      const detail = error?.detail || error?.message || "";
+
+      // Error sudah di-toast store, di sini kita hanya handle
+      // kasus spesifik yang butuh feedback berbeda
+      if (detail.includes("dinonaktifkan")) {
+        toast.error(
+          "Akun Anda dinonaktifkan. Hubungi owner workspace untuk mengaktifkan kembali.",
+          { duration: 6000 },
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -57,15 +66,73 @@ export function LoginView() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password || !username || loading) return;
+
+    // Validasi client-side
     if (password.length < 6) {
       toast.error("Password minimal 6 karakter");
       return;
     }
+
     setLoading(true);
     try {
       await register(email, username, password);
-    } catch {
-      // error sudah di-toast
+    } catch (error: any) {
+      // ⭐ Detail error sudah di-extract dari backend
+      const detail =
+        error instanceof ApiError
+          ? error.detail
+          : error?.detail || error?.message || "";
+
+      const detailLower = String(detail).toLowerCase();
+
+      // ---- Kasus: EMAIL sudah terdaftar ----
+      if (
+        detailLower.includes("email sudah terdaftar") ||
+        detailLower.includes("email already") ||
+        detailLower.includes("already registered")
+      ) {
+        toast.error(
+          "Email ini sudah terdaftar. Silakan login atau gunakan email lain.",
+          { duration: 6000, id: "register-email-exists" },
+        );
+        // Auto-switch ke tab login setelah 1.5s + isi email otomatis
+        setTimeout(() => {
+          setTab("login");
+          // Password dikosongkan agar user tidak bingung
+          setPassword("");
+        }, 1500);
+        return;
+      }
+
+      // ---- Kasus: USERNAME sudah dipakai ----
+      if (
+        detailLower.includes("username sudah dipakai") ||
+        detailLower.includes("username already") ||
+        detailLower.includes("already taken")
+      ) {
+        toast.error(
+          "Username sudah dipakai. Coba username lain.",
+          { duration: 6000, id: "register-username-taken" },
+        );
+        return;
+      }
+
+      // ---- Kasus: VALIDATION (email/username format salah) ----
+      if (detailLower.includes("email") && detailLower.includes("valid")) {
+        toast.error(
+          "Format email tidak valid. Periksa kembali email Anda.",
+          { duration: 6000, id: "register-email-invalid" },
+        );
+        return;
+      }
+
+      // ---- Fallback: pesan dari backend (sudah di-toast store juga,
+      //      tapi kita biarkan untuk redundansi) ----
+      if (!detail) {
+        toast.error("Registrasi gagal. Silakan coba lagi.", {
+          duration: 5000,
+        });
+      }
     } finally {
       setLoading(false);
     }
