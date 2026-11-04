@@ -1,7 +1,10 @@
 // src/lib/api/collaborators.ts
-import { api } from "./client";
+import { api, ApiError } from "./client";
 import type { Collaborator } from "@/lib/yudit/types";
 
+// =====================================================
+// TYPES
+// =====================================================
 export interface InvitePayload {
   email: string;
   username?: string;
@@ -39,18 +42,39 @@ export interface UpdateCollaboratorResponse {
   email_delivery?: EmailDeliveryResult;
 }
 
+// =====================================================
+// LIST
+// =====================================================
 export async function listCollaborators(): Promise<Collaborator[]> {
   const { data } = await api.get<Collaborator[]>("/collaborators/");
   return data;
 }
 
+// =====================================================
+// INVITE
+// =====================================================
 export async function inviteCollaborator(
   payload: InvitePayload,
 ): Promise<InviteCollaboratorResponse> {
-  const { data } = await api.post<InviteCollaboratorResponse>("/collaborators/", payload);
-  return data;
+  try {
+    const { data } = await api.post<InviteCollaboratorResponse>(
+      "/collaborators/",
+      payload,
+      { timeout: 60_000 }, // email sending bisa lama (GAS retry)
+    );
+    return data;
+  } catch (err: unknown) {
+    // ⭐ Re-throw sebagai ApiError dengan pesan yang jelas
+    if (err instanceof ApiError) {
+      throw err;
+    }
+    throw new ApiError(0, "Gagal mengundang collaborator");
+  }
 }
 
+// =====================================================
+// UPDATE
+// =====================================================
 export async function updateCollaborator(
   userId: string,
   payload: {
@@ -59,11 +83,22 @@ export async function updateCollaborator(
     reset_password?: boolean;
   },
 ): Promise<UpdateCollaboratorResponse> {
-  const { data } = await api.patch<UpdateCollaboratorResponse>(`/collaborators/${userId}`, payload);
+  const { data } = await api.patch<UpdateCollaboratorResponse>(
+    `/collaborators/${userId}`,
+    payload,
+    { timeout: 60_000 },
+  );
   return data;
 }
 
-export async function removeCollaborator(userId: string): Promise<{ message: string }> {
-  const { data } = await api.delete<{ message: string }>(`/collaborators/${userId}`);
+// =====================================================
+// REMOVE
+// =====================================================
+export async function removeCollaborator(
+  userId: string,
+): Promise<{ message: string }> {
+  const { data } = await api.delete<{ message: string }>(
+    `/collaborators/${userId}`,
+  );
   return data;
 }
