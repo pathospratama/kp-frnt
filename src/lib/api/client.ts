@@ -186,6 +186,8 @@ export class ApiError extends Error {
   driveId?: string;
   /** ⭐ Kode error spesifik dari backend (kalau ada) */
   code?: string;
+  requestId?: string;       // ⭐ TAMBAH
+  retryAfter?: number;
 
   constructor(status: number, detail: string, code?: string) {
     super(detail);
@@ -205,32 +207,40 @@ api.interceptors.response.use(
     const url = error.config?.url;
     const status = error.response?.status || 0;
     const headers = (error.response?.headers || {}) as Record<string, string>;
+    const requestId = headers["x-request-id"] || undefined;
 
-    // Network error / CORS / timeout
     if (!error.response) {
       const msg =
         error.code === "ECONNABORTED"
           ? "Request timeout — server tidak merespons."
           : "Tidak bisa terhubung ke server. Periksa koneksi atau CORS.";
-      // eslint-disable-next-line no-console
       console.error("[yudit/api] Network error:", error.message, url);
       return Promise.reject(new ApiError(0, msg));
     }
 
-    // Extract detail
     const detail =
       (await extractErrorDetail(error.response.data)) ||
       error.message ||
       "Terjadi kesalahan";
 
-    // Deteksi drive error
+    // Deteksi drive auth error
     const headerDriveError =
       headers["x-drive-error"] === "reconnect_required";
     const messageDriveError =
       status === 401 && looksLikeDriveAuthMessage(detail);
     const isDriveError = headerDriveError || messageDriveError;
 
-    // Auto-logout HANYA kalau 401 JWT (bukan Drive, bukan public)
+    // ⭐ Rate limit handling — JANGAN logout, tampilkan retry-after
+    let retryAfter: number | undefined;
+    if (status === 429) {
+      const ra = headers["retry-after"];
+      if (ra) {
+        const n = parseInt(ra, 10);
+        if (!isNaN(n)) retryAfter = n;
+      }
+    }
+
+    // Auto-logout hanya 401 JWT, bukan Drive, bukan public
     if (status === 401 && !isPublicPath(url) && !isDriveError && getToken()) {
       clearToken();
       if (typeof window !== "undefined") {
@@ -238,12 +248,13 @@ api.interceptors.response.use(
       }
     }
 
-    // Attach flags
     const apiError = new ApiError(
       status,
       String(detail),
       headers["x-error-code"] || undefined,
     );
+    apiError.requestId = requestId;
+    apiError.retryAfter = retryAfter;
     if (isDriveError) {
       apiError.isDriveError = true;
       apiError.driveEmail = headers["x-drive-email"] || "";
