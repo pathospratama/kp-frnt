@@ -23,11 +23,34 @@ export interface ShareInfo {
   views: number;
 }
 
+// src/lib/api/share.ts — PATCH
+
 export async function createShare(
   payload: ShareCreatePayload,
 ): Promise<ShareCreateResponse> {
-  const { data } = await api.post<ShareCreateResponse>("/share/create", payload);
-  return data;
+  try {
+    const { data } = await api.post<ShareCreateResponse>(
+      "/share/create",
+      payload,
+    );
+    return data;
+  } catch (err: any) {
+    if (err?.status === 403) {
+      // Backend tolak karena permission share tidak diberikan
+      throw new Error(
+        err.detail ||
+          "Anda tidak punya izin share file ini. " +
+            "Minta owner menambahkan permission share di assignment.",
+      );
+    }
+    if (err?.status === 410) {
+      throw new Error(
+        "File ini terkait Google Drive yang sudah dihapus. " +
+          "Reconnect akun Google Drive untuk mengakses kembali.",
+      );
+    }
+    throw err;
+  }
 }
 
 export async function revokeShare(fileId: string): Promise<void> {
