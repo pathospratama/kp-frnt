@@ -53,33 +53,34 @@ export function useDocEditor(fileId: string | null) {
       const res = await openDoc(fileId);
       setDoc(res);
       contentHashRef.current = res.content_hash;
-    } catch (e: unknown) {
-      const err = e as { detail?: string; status?: number };
-      const status = err?.status || 0;
-      let message = err?.detail || "Gagal membuka dokumen";
-      let isAuthError = false;
+    } // src/hooks/use-doc-editor.ts — PATCH bagian catch di `load`
 
-      // ✅ Klasifikasi error dari backend
-      if (status === 401) {
-        isAuthError = true;
-        message =
-          err?.detail ||
-          "Google Drive yang menyimpan file ini sudah tidak valid. " +
-            "Buka menu 'Google Drive' → hapus akun lama → connect ulang.";
-      } else if (status === 403) {
-        message = err?.detail || "Anda tidak memiliki akses ke file ini.";
-      } else if (status === 400) {
-        // Detail 400 dari backend sudah spesifik
-        message = err?.detail || "File tidak valid atau tidak bisa diedit.";
-      } else if (status >= 500) {
-        message = err?.detail || "Server error. Coba lagi beberapa saat.";
-      }
+} catch (e: unknown) {
+  const err = e as { detail?: string; status?: number; requestId?: string };
+  const status = err?.status || 0;
+  let message = err?.detail || "Gagal membuka dokumen";
+  let isAuthError = false;
 
-      setError({ message, status, isAuthError });
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
+  if (status === 401) {
+    isAuthError = true;
+    message =
+      err?.detail ||
+      "Google Drive yang menyimpan file ini sudah tidak valid. " +
+        "Buka menu 'Google Drive' → hapus akun lama → connect ulang.";
+  } else if (status === 403) {
+    message = err?.detail || "Anda tidak memiliki akses ke file ini.";
+  } else if (status === 429) {
+    message = "Terlalu banyak permintaan. Coba lagi beberapa saat.";
+  } else if (status >= 500) {
+    // ⭐ Backend tidak bocorkan detail, tapi beri request_id
+    const rid = err?.requestId ? ` Ref: ${err.requestId}` : "";
+    message =
+      "Server sedang bermasalah. Coba lagi beberapa saat." + rid;
+  }
+
+  setError({ message, status, isAuthError });
+  toast.error(message);
+}
   }, [fileId]);
 
   useEffect(() => {
