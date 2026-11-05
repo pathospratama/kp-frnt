@@ -361,11 +361,40 @@ export const useYudit = create<YuditState>()(
             );
           }
         } catch (e) {
-          set({ authLoading: false });
-          const msg = e instanceof ApiError ? e.detail : "Login gagal";
-          toast(msg, "error");
-          throw e;
-        }
+    set({ authLoading: false });
+
+    // ⭐ Handling 429 spesifik
+    if (e instanceof ApiError) {
+      if (e.status === 429) {
+        const wait = e.retryAfter
+          ? `Coba lagi dalam ${e.retryAfter} detik.`
+          : "Coba lagi beberapa saat lagi.";
+        toast(`Terlalu banyak percobaan login. ${wait}`, "error");
+        throw e;
+      }
+      if (e.status === 401) {
+        toast("Email atau password salah", "error");
+        throw e;
+      }
+      if (e.status === 403 && e.detail.includes("dinonaktifkan")) {
+        toast(
+          "Akun dinonaktifkan. Hubungi owner workspace.",
+          "error",
+        );
+        throw e;
+      }
+      // 500 — tampilkan request ID untuk support
+      if (e.status >= 500) {
+        const rid = e.requestId ? ` (ref: ${e.requestId})` : "";
+        toast(`Server error. Coba lagi.${rid}`, "error");
+        throw e;
+      }
+      toast(e.detail, "error");
+      throw e;
+    }
+    toast("Login gagal", "error");
+    throw e;
+  }
       },
 
       register: async (email, username, password) => {
