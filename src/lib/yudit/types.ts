@@ -21,6 +21,7 @@ export interface FileItem {
   folder_id: string | null;
   folder_name: string | null;
   monthly_folder_id?: string | null;
+  
 
   // ⭐ Nullable — backend bisa kirim null untuk file legacy
   year: number | null;
@@ -41,6 +42,7 @@ export interface FileItem {
   // ⭐ Permission flags dari backend (annotate_files_for_user)
   can_edit_to_me?: boolean;
   can_delete_to_me?: boolean;
+  can_share_to_me?: boolean;
 
   // =====================================================
   // GOOGLE DOCS NATIVE
