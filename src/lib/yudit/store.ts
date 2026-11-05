@@ -917,25 +917,27 @@ export const useYudit = create<YuditState>()(
       closeShare: () => set({ shareFileId: null }),
 
       createShare: async (cfg) => {
-        const id = get().shareFileId;
-        if (!id) return;
-        try {
-          const res = await shareApi.createShare({
-            file_id: id,
-            expires_hours: cfg.expires_hours,
-            password: cfg.password,
-          });
-          set((s) => ({
-            files: s.files.map((f) =>
-              f.id === id
-                ? {
-                    ...f,
-                    is_public: true,
-                    share_token: res.token,
-                    share_expires_at: res.expires_at,
-                  }
-                : f,
-            ),
+  const id = get().shareFileId;
+  if (!id) return;
+  try {
+    const res = await shareApi.createShare({ file_id: id, ...cfg });
+    set((s) => ({
+      files: s.files.map((f) =>
+        f.id === id
+          ? { ...f, is_public: true, share_token: res.token, share_expires_at: res.expires_at }
+          : f,
+      ),
+    }));
+    toast("Link share dibuat", "success");
+  } catch (e: any) {
+    // 403 tidak berarti error fatal — tutup modal, file tetap accessible
+    if (e?.status === 403) {
+      get().closeShare();          // ⭐ auto-close modal
+    }
+    toast(e?.detail || e?.message || "Gagal buat share", "error");
+    throw e;
+  }
+},
           }));
           toast("Link share dibuat", "success");
         } catch (e) {
