@@ -81,11 +81,13 @@ function canDeleteFile(file: FileItem, user: User | null): boolean {
   return file.can_delete_to_me === true;
 }
 
-function canShareFile(_file: FileItem, user: User | null): boolean {
+function canShareFile(file: FileItem, user: User | null): boolean {
   if (!user) return false;
-  return true;
+  // Owner & super_admin: selalu boleh share file di workspace
+  if (user.role === "owner" || user.role === "super_admin") return true;
+  // Member: hanya kalau backend kasih izin
+  return file.can_share_to_me === true;
 }
-
 // =====================================================
 // PROPS
 // =====================================================
