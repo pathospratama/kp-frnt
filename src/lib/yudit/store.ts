@@ -77,28 +77,12 @@ export function defaultViewForRole(user: User | null): ViewKey {
   return isMember(user) ? "my-tasks" : "files";
 }
 
-/**
- * Cek apakah user boleh akses view tertentu.
- *
- * Rules:
- * - my-tasks      → member only (owner/super_admin = assigner)
- * - collaborators → owner/super_admin only
- * - drives        → owner/super_admin only
- * - lainnya       → semua role
- */
 export function canAccessView(user: User | null, view: ViewKey): boolean {
   if (!user) return false;
-
-  // ⭐ my-tasks hanya untuk member
-  if (view === "my-tasks") {
-    return isMember(user);
-  }
-
-  // manage views hanya untuk owner/super_admin
+  if (view === "my-tasks") return isMember(user);
   if (view === "collaborators" || view === "drives") {
     return canManageWorkspace(user);
   }
-
   return true;
 }
 
@@ -156,7 +140,6 @@ interface YuditState {
     pct: number | null;
   };
 
-  // ⭐ Track drive auth error untuk banner global
   driveAuthError: {
     email: string | null;
     message: string | null;
@@ -237,7 +220,6 @@ interface YuditState {
   showProgress: (label: string, sub: string, pct?: number | null) => void;
   hideProgress: () => void;
 
-  // ⭐ Untuk drive auth error
   setDriveAuthError: (email: string | null, message: string | null) => void;
   clearDriveAuthError: () => void;
 }
@@ -361,40 +343,37 @@ export const useYudit = create<YuditState>()(
             );
           }
         } catch (e) {
-    set({ authLoading: false });
+          set({ authLoading: false });
 
-    // ⭐ Handling 429 spesifik
-    if (e instanceof ApiError) {
-      if (e.status === 429) {
-        const wait = e.retryAfter
-          ? `Coba lagi dalam ${e.retryAfter} detik.`
-          : "Coba lagi beberapa saat lagi.";
-        toast(`Terlalu banyak percobaan login. ${wait}`, "error");
-        throw e;
-      }
-      if (e.status === 401) {
-        toast("Email atau password salah", "error");
-        throw e;
-      }
-      if (e.status === 403 && e.detail.includes("dinonaktifkan")) {
-        toast(
-          "Akun dinonaktifkan. Hubungi owner workspace.",
-          "error",
-        );
-        throw e;
-      }
-      // 500 — tampilkan request ID untuk support
-      if (e.status >= 500) {
-        const rid = e.requestId ? ` (ref: ${e.requestId})` : "";
-        toast(`Server error. Coba lagi.${rid}`, "error");
-        throw e;
-      }
-      toast(e.detail, "error");
-      throw e;
-    }
-    toast("Login gagal", "error");
-    throw e;
-  }
+          // ⭐ Handling error spesifik per status
+          if (e instanceof ApiError) {
+            if (e.status === 429) {
+              const wait = e.retryAfter
+                ? `Coba lagi dalam ${e.retryAfter} detik.`
+                : "Coba lagi beberapa saat lagi.";
+              toast(`Terlalu banyak percobaan login. ${wait}`, "error");
+              throw e;
+            }
+            if (e.status === 401) {
+              toast("Email atau password salah", "error");
+              throw e;
+            }
+            if (e.status === 403 && e.detail.includes("dinonaktifkan")) {
+              toast("Akun dinonaktifkan. Hubungi owner workspace.", "error");
+              throw e;
+            }
+            if (e.status >= 500) {
+              const rid = e.requestId ? ` (ref: ${e.requestId})` : "";
+              toast(`Server error. Coba lagi.${rid}`, "error");
+              throw e;
+            }
+            toast(e.detail, "error");
+            throw e;
+          }
+
+          toast("Login gagal", "error");
+          throw e;
+        }
       },
 
       register: async (email, username, password) => {
@@ -518,7 +497,6 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-      // ⭐ fetchDrives — dengan auto-clear driveAuthError kalau masalah teratasi
       fetchDrives: async () => {
         if (!canManageWorkspace(get().user)) {
           set({ drives: [], pool: EMPTY_POOL, drivesLoading: false });
@@ -652,12 +630,10 @@ export const useYudit = create<YuditState>()(
           let msg = "Konversi gagal";
           if (e instanceof ApiError) {
             if (e.isDriveError) {
-              // Drive auth error — beri pesan jelas
               const email = e.driveEmail || "Google Drive";
               msg =
                 `${email} perlu di-reconnect. ` +
                 `Buka menu 'Google Drive' → hapus akun lama → connect ulang.`;
-              // Broadcast ke global listener
               if (typeof window !== "undefined") {
                 window.dispatchEvent(
                   new CustomEvent("yudit:drive-auth-error", {
@@ -917,30 +893,49 @@ export const useYudit = create<YuditState>()(
       closeShare: () => set({ shareFileId: null }),
 
       createShare: async (cfg) => {
-  const id = get().shareFileId;
-  if (!id) return;
-  try {
-    const res = await shareApi.createShare({ file_id: id, ...cfg });
-    set((s) => ({
-      files: s.files.map((f) =>
-        f.id === id
-          ? { ...f, is_public: true, share_token: res.token, share_expires_at: res.expires_at }
-          : f,
-      ),
-    }));
-    toast("Link share dibuat", "success");
-  } catch (e: any) {
-    // 403 tidak berarti error fatal — tutup modal, file tetap accessible
-    if (e?.status === 403) {
-      get().closeShare();          // ⭐ auto-close modal
-    }
-    toast(e?.detail || e?.message || "Gagal buat share", "error");
-    throw e;
-  }
-},
+        const id = get().shareFileId;
+        if (!id) return;
+        try {
+          const res = await shareApi.createShare({
+            file_id: id,
+            expires_hours: cfg.expires_hours,
+            password: cfg.password,
+          });
+          set((s) => ({
+            files: s.files.map((f) =>
+              f.id === id
+                ? {
+                    ...f,
+                    is_public: true,
+                    share_token: res.token,
+                    share_expires_at: res.expires_at,
+                  }
+                : f,
+            ),
           }));
           toast("Link share dibuat", "success");
         } catch (e) {
+          // ⭐ 403 = tidak punya izin share → tutup modal, file tetap akses
+          if (e instanceof ApiError && e.status === 403) {
+            get().closeShare();
+            toast(
+              e.detail ||
+                "Anda tidak punya izin share file ini. " +
+                  "Minta owner menambahkan permission share.",
+              "error",
+            );
+            throw e;
+          }
+          // ⭐ 410 = file terkait drive yang sudah dihapus
+          if (e instanceof ApiError && e.status === 410) {
+            get().closeShare();
+            toast(
+              "File ini terkait Google Drive yang sudah dihapus. " +
+                "Reconnect akun Google Drive untuk mengakses kembali.",
+              "error",
+            );
+            throw e;
+          }
           const msg = e instanceof ApiError ? e.detail : "Gagal buat share";
           toast(msg, "error");
           throw e;
@@ -1077,7 +1072,6 @@ export const useYudit = create<YuditState>()(
         currentView: s.currentView,
         filters: s.filters,
         expandedMonthly: s.expandedMonthly,
-        // Tidak persist driveAuthError — reset setiap reload
       }),
     },
   ),
@@ -1127,7 +1121,7 @@ if (typeof window !== "undefined") {
     useYudit.getState().logout();
   });
 
-  // ---- 2. ⭐ Drive auth error → simpan state (JANGAN logout!) ----
+  // ---- 2. Drive auth error → simpan state (JANGAN logout) ----
   window.addEventListener("yudit:drive-auth-error", ((e: Event) => {
     const detail = (e as CustomEvent<{
       email?: string | null;
@@ -1137,8 +1131,6 @@ if (typeof window !== "undefined") {
 
     if (!detail) return;
 
-    // ⭐ Email boleh null (header CORS blocked). Banner tetap muncul
-    //    karena message selalu di-set dengan fallback.
     const email = detail.email || null;
     const message =
       detail.message ||
@@ -1146,8 +1138,6 @@ if (typeof window !== "undefined") {
 
     useYudit.getState().setDriveAuthError(email, message);
 
-    // Refresh drives list agar status `is_active` akurat
-    // (backend sudah mark inactive, tapi state lokal perlu update)
     const state = useYudit.getState();
     if (canManageWorkspace(state.user)) {
       state.fetchDrives().catch(() => {
