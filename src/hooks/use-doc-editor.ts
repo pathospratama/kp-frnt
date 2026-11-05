@@ -23,6 +23,7 @@ interface LoadError {
   message: string;
   status: number;
   isAuthError: boolean;
+  requestId?: string; // ⭐ TAMBAH — untuk tracing 500 error
 }
 
 // =====================================================
@@ -53,34 +54,38 @@ export function useDocEditor(fileId: string | null) {
       const res = await openDoc(fileId);
       setDoc(res);
       contentHashRef.current = res.content_hash;
-    } // src/hooks/use-doc-editor.ts — PATCH bagian catch di `load`
+    } catch (e: unknown) {
+      const err = e as {
+        detail?: string;
+        status?: number;
+        requestId?: string;
+      };
+      const status = err?.status || 0;
+      const requestId = err?.requestId;
 
-} catch (e: unknown) {
-  const err = e as { detail?: string; status?: number; requestId?: string };
-  const status = err?.status || 0;
-  let message = err?.detail || "Gagal membuka dokumen";
-  let isAuthError = false;
+      let message = err?.detail || "Gagal membuka dokumen";
+      let isAuthError = false;
 
-  if (status === 401) {
-    isAuthError = true;
-    message =
-      err?.detail ||
-      "Google Drive yang menyimpan file ini sudah tidak valid. " +
-        "Buka menu 'Google Drive' → hapus akun lama → connect ulang.";
-  } else if (status === 403) {
-    message = err?.detail || "Anda tidak memiliki akses ke file ini.";
-  } else if (status === 429) {
-    message = "Terlalu banyak permintaan. Coba lagi beberapa saat.";
-  } else if (status >= 500) {
-    // ⭐ Backend tidak bocorkan detail, tapi beri request_id
-    const rid = err?.requestId ? ` Ref: ${err.requestId}` : "";
-    message =
-      "Server sedang bermasalah. Coba lagi beberapa saat." + rid;
-  }
+      if (status === 401) {
+        isAuthError = true;
+        message =
+          err?.detail ||
+          "Google Drive yang menyimpan file ini sudah tidak valid. " +
+            "Buka menu 'Google Drive' → hapus akun lama → connect ulang.";
+      } else if (status === 403) {
+        message = err?.detail || "Anda tidak memiliki akses ke file ini.";
+      } else if (status === 429) {
+        message = "Terlalu banyak permintaan. Coba lagi beberapa saat.";
+      } else if (status >= 500) {
+        const rid = requestId ? ` (Ref: ${requestId})` : "";
+        message = "Server sedang bermasalah. Coba lagi beberapa saat." + rid;
+      }
 
-  setError({ message, status, isAuthError });
-  toast.error(message);
-}
+      setError({ message, status, isAuthError, requestId });
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
   }, [fileId]);
 
   useEffect(() => {
@@ -107,8 +112,13 @@ export function useDocEditor(fileId: string | null) {
         });
         return res;
       } catch (e: unknown) {
-        const err = e as { detail?: string; status?: number };
+        const err = e as {
+          detail?: string;
+          status?: number;
+          requestId?: string;
+        };
         const status = err?.status || 0;
+        const requestId = err?.requestId;
 
         let msg = err?.detail || "Gagal simpan";
         if (status === 401) {
@@ -116,8 +126,11 @@ export function useDocEditor(fileId: string | null) {
             "Google Drive tidak valid. Reconnect dulu di menu Google Drive.";
         } else if (status === 400) {
           msg = err?.detail || "Dokumen sudah berubah. Muat ulang.";
+        } else if (status === 429) {
+          msg = "Terlalu banyak permintaan. Coba lagi beberapa saat.";
         } else if (status >= 500) {
-          msg = "Server error. Coba lagi beberapa saat.";
+          const rid = requestId ? ` (Ref: ${requestId})` : "";
+          msg = "Server error. Coba lagi beberapa saat." + rid;
         }
 
         setSaveState({ status: "error", lastSavedAt: null, error: msg });
@@ -154,22 +167,20 @@ export function useDocEditor(fileId: string | null) {
     [doSave],
   );
 
-  // ---- Cleanup ----
-  // src/hooks/use-doc-editor.ts
-useEffect(() => {
-  return () => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    // ⭐ Save pending changes sebelum unmount (kalau ada fileId)
-    if (fileId && pendingHtmlRef.current) {
-      const html = pendingHtmlRef.current;
-      pendingHtmlRef.current = null;
-      // Fire-and-forget — tidak blocking
-      saveDoc(fileId, html, contentHashRef.current, false).catch((err) => {
-        console.warn("[useDocEditor] Save on unmount failed:", err);
-      });
-    }
-  };
-}, [fileId]);
+  // ---- Cleanup: save pending changes sebelum unmount ----
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (fileId && pendingHtmlRef.current) {
+        const html = pendingHtmlRef.current;
+        pendingHtmlRef.current = null;
+        // Fire-and-forget — tidak blocking unmount
+        saveDoc(fileId, html, contentHashRef.current, false).catch((err) => {
+          console.warn("[useDocEditor] Save on unmount failed:", err);
+        });
+      }
+    };
+  }, [fileId]);
 
   return {
     doc,
