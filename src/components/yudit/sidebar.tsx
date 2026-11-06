@@ -24,6 +24,9 @@ interface NavItem {
   icon: typeof FolderOpen;
 }
 
+// =====================================================
+// ⭐ NAV ITEMS — semua role bisa lihat semua menu
+// =====================================================
 function getNavItems(role: UserRole | undefined): NavItem[] {
   const base: NavItem[] = [
     { key: "files", label: "My Files", icon: FolderOpen },
@@ -43,12 +46,12 @@ function getNavItems(role: UserRole | undefined): NavItem[] {
     { key: "stats", label: "Statistik", icon: BarChart3 },
   );
 
-  if (role === "owner" || role === "super_admin") {
-    base.push(
-      { key: "drives", label: "Google Drive", icon: HardDrive },
-      { key: "collaborators", label: "Collaborators", icon: Users },
-    );
-  }
+  // ⭐ Drives & Collaborators tampil untuk SEMUA role
+  // Member = read-only (action button disembunyikan di view-nya)
+  base.push(
+    { key: "drives", label: "Google Drive", icon: HardDrive },
+    { key: "collaborators", label: "Collaborators", icon: Users },
+  );
 
   return base;
 }
@@ -97,11 +100,13 @@ export function Sidebar() {
       case "monthly":
         return countMonthlyFolders(files) || null;
       case "drives":
-        return isManager && drives.length > 0 ? drives.length : null;
+        // ⭐ Badge untuk semua role
+        return drives.length > 0 ? drives.length : null;
       case "convert":
         return convertingCount > 0 ? convertingCount : null;
       case "collaborators":
-        return isManager && collaborators.length > 0 ? collaborators.length : null;
+        // ⭐ Badge untuk semua role
+        return collaborators.length > 0 ? collaborators.length : null;
       case "stats":
         return activeCategories > 0 ? activeCategories : null;
       default:
@@ -186,43 +191,41 @@ export function Sidebar() {
           </nav>
         </div>
 
-        {/* STORAGE WIDGET */}
-        {isManager && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-3.5"
-          >
-            <div className="mb-2.5 flex items-center justify-between">
-              <span className="text-xs font-semibold text-[var(--y-text-dim)]">
-                Storage Pool
-              </span>
-              <span className="text-xs font-bold text-[var(--y-primary)] tabular-nums">
-                {pct}%
-              </span>
-            </div>
-            <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--y-bg-elev-2)]">
-              <motion.div
-                className="h-full rounded-full"
-                style={{
-                  background:
-                    "linear-gradient(90deg, var(--y-primary), var(--y-accent))",
-                }}
-                initial={{ width: 0 }}
-                animate={{ width: `${pct}%` }}
-                transition={{ duration: 0.8, ease: "easeOut" }}
-              />
-            </div>
-            <div className="flex items-center justify-between text-[11px] text-[var(--y-text-mute)]">
-              <span className="tabular-nums">
-                {formatBytes(pool.used)} / {formatBytes(pool.total)}
-              </span>
-              <span className="tabular-nums">
-                {pool.accounts} drive{pool.accounts !== 1 ? "s" : ""}
-              </span>
-            </div>
-          </motion.div>
-        )}
+        {/* STORAGE WIDGET — tampil untuk semua role */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-3.5"
+        >
+          <div className="mb-2.5 flex items-center justify-between">
+            <span className="text-xs font-semibold text-[var(--y-text-dim)]">
+              Storage Pool
+            </span>
+            <span className="text-xs font-bold text-[var(--y-primary)] tabular-nums">
+              {pct}%
+            </span>
+          </div>
+          <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--y-bg-elev-2)]">
+            <motion.div
+              className="h-full rounded-full"
+              style={{
+                background:
+                  "linear-gradient(90deg, var(--y-primary), var(--y-accent))",
+              }}
+              initial={{ width: 0 }}
+              animate={{ width: `${pct}%` }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-[var(--y-text-mute)]">
+            <span className="tabular-nums">
+              {formatBytes(pool.used)} / {formatBytes(pool.total)}
+            </span>
+            <span className="tabular-nums">
+              {pool.accounts} drive{pool.accounts !== 1 ? "s" : ""}
+            </span>
+          </div>
+        </motion.div>
 
         {/* MEMBER INFO */}
         {!isManager && (
@@ -236,8 +239,8 @@ export function Sidebar() {
               Mode Member
             </div>
             <div className="text-[11px] leading-relaxed text-[var(--y-text-dim)]">
-              Anda hanya bisa edit dokumen yang di-assign owner. File baru
-              masuk ke pool owner.
+              Anda bisa lihat semua dokumen (read-only) & edit dokumen yang
+              di-assign owner. File baru masuk ke pool owner.
             </div>
           </motion.div>
         )}
