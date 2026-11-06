@@ -14,6 +14,7 @@ import {
   Shield,
   HardDrive,
   Users,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,11 +26,10 @@ import { ApiError } from "@/lib/api/client";
 import type { DriveAccount } from "@/lib/yudit/types";
 import { cn } from "@/lib/utils";
 
-// Batas opsional — null = unlimited
 const MAX_DRIVES: number | null = null;
 
 // =====================================================
-// MAIN COMPONENT
+// ⭐ MAIN COMPONENT — read-only untuk member
 // =====================================================
 export function DrivesView() {
   const user = useYudit((s) => s.user);
@@ -43,48 +43,15 @@ export function DrivesView() {
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Guard
+  // ⭐ canManage = full access; member = read-only
   const canManage = canManageWorkspace(user);
+  const canConnect = canManage && (MAX_DRIVES === null || drives.length < MAX_DRIVES);
 
-  // Cek apakah masih boleh connect
-  const canConnect = MAX_DRIVES === null || drives.length < MAX_DRIVES;
-
-  // =====================================================
-  // GUARD RENDER
-  // =====================================================
-  if (!canManage) {
-    return (
-      <div className="grid place-items-center py-20">
-        <div className="max-w-md rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-8 text-center">
-          <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-[rgba(239,68,68,0.15)]">
-            <AlertCircle size={28} className="text-[var(--y-danger)]" />
-          </div>
-          <h3 className="mb-2 text-base font-semibold text-[var(--y-text)]">
-            Akses Ditolak
-          </h3>
-          <p className="mb-4 text-sm text-[var(--y-text-dim)]">
-            Hanya <b>owner</b> atau <b>super admin</b> yang bisa mengelola
-            Google Drive. Hubungi owner workspace Anda.
-          </p>
-          <div className="rounded-lg border border-[var(--y-border-soft)] bg-[rgba(99,102,241,0.05)] p-3 text-left text-[11px] text-[var(--y-text-dim)]">
-            <div className="mb-1 font-semibold text-[var(--y-text)]">
-              Sebagai member, Anda tetap bisa:
-            </div>
-            <ul className="list-inside list-disc space-y-0.5">
-              <li>Upload file ke pool owner</li>
-              <li>Edit dokumen yang di-assign</li>
-              <li>Share dokumen yang diizinkan</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // =====================================================
-  // HANDLERS
-  // =====================================================
   const handleConnect = async () => {
+    if (!canManage) {
+      toast.error("Hanya owner atau super admin yang bisa connect Google Drive");
+      return;
+    }
     if (!canConnect) {
       toast.error(`Maksimal ${MAX_DRIVES} akun Google Drive`);
       return;
@@ -116,6 +83,10 @@ export function DrivesView() {
   };
 
   const handleRefreshQuota = async () => {
+    if (!canManage) {
+      toast.error("Hanya owner atau super admin yang bisa refresh quota");
+      return;
+    }
     if (refreshing) return;
     setRefreshing(true);
     const toastId = toast.loading("Refreshing quota semua drive…");
@@ -131,15 +102,15 @@ export function DrivesView() {
     }
   };
 
-  // ⭐ Flow baru: try no-force → kalau 400 → confirm force → soft-delete
   const handleRemove = async (drive: DriveAccount) => {
-    if (deletingId) return; // cegah double-click
+    if (!canManage) {
+      toast.error("Hanya owner atau super admin yang bisa hapus drive");
+      return;
+    }
+    if (deletingId) return;
     setDeletingId(drive.id);
 
     try {
-      // ---- Try 1: tanpa force ----
-      // Berhasil kalau drive kosong (hard delete)
-      // Gagal 400 kalau ada file (butuh konfirmasi)
       try {
         const res = await disconnectDrive(drive.id, false);
         toast.success(
@@ -155,14 +126,10 @@ export function DrivesView() {
           err?.status === 400 &&
           detail.toLowerCase().includes("force");
 
-        // Kalau bukan "force required" → lempar ke error umum
         if (!isForceRequired) {
           throw e;
         }
 
-        // ---- Kasus: masih ada file → konfirmasi force delete ----
-        // Detail message dari backend sudah berisi jumlah file,
-        // jadi kita tampilkan langsung.
         showConfirm(
           "Drive Masih Berisi File",
           detail,
@@ -185,8 +152,6 @@ export function DrivesView() {
       const err = e as ApiError;
       toast.error(err?.detail || "Gagal hapus drive");
     } finally {
-      // Reset hanya kalau tidak masuk ke confirm flow
-      // (kalau masuk, akan di-reset di callback)
       setTimeout(() => {
         setDeletingId((prev) => (prev === drive.id ? null : prev));
       }, 100);
@@ -195,19 +160,15 @@ export function DrivesView() {
 
   const pct = pool.total > 0 ? Math.round((pool.used / pool.total) * 100) : 0;
 
-  // Hitung statistik
   const activeDrives = drives.filter((d) => d.is_active).length;
   const inactiveDrives = drives.length - activeDrives;
   const accountsText = MAX_DRIVES
     ? `${drives.length} dari ${MAX_DRIVES} akun terhubung`
     : `${drives.length} akun terhubung`;
 
-  // =====================================================
-  // RENDER
-  // =====================================================
   return (
     <div className="y-anim-fade">
-      {/* Header */}
+      {/* Header — tombol Refresh/Connect HANYA untuk manager */}
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-[var(--y-text)]">
@@ -218,36 +179,52 @@ export function DrivesView() {
             {formatBytes(pool.total)} terpakai
           </p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleRefreshQuota}
-            disabled={refreshing || drives.length === 0}
-            title="Refresh quota dari Google"
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg-elev)] px-3 text-[13px] font-semibold text-[var(--y-text-dim)] transition-all hover:border-[var(--y-primary)] hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {refreshing ? (
-              <Loader2 size={15} className="animate-spin" />
-            ) : (
-              <RefreshCw size={15} />
-            )}
-            <span className="hidden sm:inline">Refresh Quota</span>
-          </button>
-          {canConnect && (
+        {canManage && (
+          <div className="flex gap-2">
             <button
-              onClick={handleConnect}
-              disabled={connecting}
-              className="y-gradient-brand y-glow-primary inline-flex h-9 items-center gap-2 rounded-lg px-4 text-[13px] font-semibold text-white transition-all hover:-translate-y-0.5 disabled:opacity-70"
+              onClick={handleRefreshQuota}
+              disabled={refreshing || drives.length === 0}
+              title="Refresh quota dari Google"
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg-elev)] px-3 text-[13px] font-semibold text-[var(--y-text-dim)] transition-all hover:border-[var(--y-primary)] hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {connecting ? (
-                <Loader2 size={16} className="animate-spin" />
+              {refreshing ? (
+                <Loader2 size={15} className="animate-spin" />
               ) : (
-                <Plus size={16} />
+                <RefreshCw size={15} />
               )}
-              Hubungkan Drive
+              <span className="hidden sm:inline">Refresh Quota</span>
             </button>
-          )}
-        </div>
+            {canConnect && (
+              <button
+                onClick={handleConnect}
+                disabled={connecting}
+                className="y-gradient-brand y-glow-primary inline-flex h-9 items-center gap-2 rounded-lg px-4 text-[13px] font-semibold text-white transition-all hover:-translate-y-0.5 disabled:opacity-70"
+              >
+                {connecting ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Plus size={16} />
+                )}
+                Hubungkan Drive
+              </button>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* ⭐ Info banner untuk member */}
+      {!canManage && (
+        <div className="mb-4 flex items-start gap-3 rounded-2xl border border-[var(--y-border-soft)] bg-[rgba(99,102,241,0.06)] p-4">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[rgba(99,102,241,0.15)]">
+            <Info size={16} className="text-[var(--y-primary)]" />
+          </div>
+          <div className="text-[13px] leading-relaxed text-[var(--y-text-dim)]">
+            <b className="text-[var(--y-text)]">Mode read-only.</b> Hanya
+            owner/super admin yang bisa menambah atau menghapus akun Google
+            Drive. Anda bisa lihat statistik & kapasitas pool di sini.
+          </div>
+        </div>
+      )}
 
       {/* Stats summary */}
       {drives.length > 0 && (
@@ -315,21 +292,24 @@ export function DrivesView() {
             Belum ada akun Google Drive
           </div>
           <div className="mb-4 max-w-sm text-sm text-[var(--y-text-dim)]">
-            Hubungkan akun Google Drive pertama Anda untuk mulai menyimpan
-            file di YuditCloud.
+            {canManage
+              ? "Hubungkan akun Google Drive pertama Anda untuk mulai menyimpan file di YuditCloud."
+              : "Owner workspace belum menghubungkan akun Google Drive."}
           </div>
-          <button
-            onClick={handleConnect}
-            disabled={connecting}
-            className="y-gradient-brand y-glow-primary inline-flex h-10 items-center gap-2 rounded-lg px-5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 disabled:opacity-70"
-          >
-            {connecting ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Plus size={16} />
-            )}
-            Hubungkan Google Drive
-          </button>
+          {canManage && (
+            <button
+              onClick={handleConnect}
+              disabled={connecting}
+              className="y-gradient-brand y-glow-primary inline-flex h-10 items-center gap-2 rounded-lg px-5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 disabled:opacity-70"
+            >
+              {connecting ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Plus size={16} />
+              )}
+              Hubungkan Google Drive
+            </button>
+          )}
         </div>
       )}
 
@@ -359,7 +339,6 @@ export function DrivesView() {
                   isDeleting && "pointer-events-none opacity-60",
                 )}
               >
-                {/* Top accent bar */}
                 <div
                   className="absolute inset-x-0 top-0 h-[3px] opacity-0 transition-opacity group-hover:opacity-100"
                   style={{
@@ -369,26 +348,28 @@ export function DrivesView() {
                   }}
                 />
 
-                {/* Delete button */}
-                <button
-                  onClick={() => handleRemove(d)}
-                  disabled={isDeleting}
-                  title="Hapus drive"
-                  className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-lg text-[var(--y-text-mute)] opacity-100 transition-all hover:bg-[rgba(239,68,68,0.15)] hover:text-[var(--y-danger)] disabled:cursor-not-allowed sm:opacity-0 sm:group-hover:opacity-100"
-                >
-                  {isDeleting ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <Trash2 size={14} />
-                  )}
-                </button>
+                {/* ⭐ Tombol delete HANYA untuk manager */}
+                {canManage && (
+                  <button
+                    onClick={() => handleRemove(d)}
+                    disabled={isDeleting}
+                    title="Hapus drive"
+                    className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-lg text-[var(--y-text-mute)] opacity-100 transition-all hover:bg-[rgba(239,68,68,0.15)] hover:text-[var(--y-danger)] disabled:cursor-not-allowed sm:opacity-0 sm:group-hover:opacity-100"
+                  >
+                    {isDeleting ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={14} />
+                    )}
+                  </button>
+                )}
 
-                {/* Header: logo + email + slot */}
+                {/* Header */}
                 <div className="mb-3.5 flex items-center gap-3">
                   <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white">
                     <GDriveLogo />
                   </div>
-                  <div className="min-w-0 flex-1 pr-6">
+                  <div className={cn("min-w-0 flex-1", canManage && "pr-6")}>
                     <div className="truncate text-[13px] font-semibold text-[var(--y-text)]">
                       {d.google_email}
                     </div>
@@ -411,11 +392,13 @@ export function DrivesView() {
                   </div>
                 </div>
 
-                {/* Warning kalau inactive */}
+                {/* Warning */}
                 {!d.is_active && (
                   <div className="mb-3 rounded-lg bg-[rgba(239,68,68,0.08)] px-2.5 py-1.5 text-[10.5px] leading-relaxed text-[var(--y-danger)]">
-                    ⚠️ Refresh token Google Drive ini sudah revoked. Reconnect
-                    akun untuk mengaktifkan kembali.
+                    ⚠️ Refresh token Google Drive ini sudah revoked.
+                    {canManage
+                      ? " Reconnect akun untuk mengaktifkan kembali."
+                      : " Owner perlu reconnect akun."}
                   </div>
                 )}
 
@@ -435,29 +418,26 @@ export function DrivesView() {
                   />
                 </div>
 
-                {/* Usage info */}
                 <div className="flex justify-between text-[11px] text-[var(--y-text-dim)] tabular-nums">
                   <span>{formatBytes(d.quota_used)} terpakai</span>
                   <span>{formatBytes(d.quota_total)} total</span>
                 </div>
 
-                {/* Free space */}
                 <div className="mt-1 text-[10.5px] text-[var(--y-text-mute)]">
                   {formatBytes(Math.max(0, d.quota_total - d.quota_used))}{" "}
                   bebas • {dpct}% terpakai
                 </div>
 
-                {/* Footer: updated time */}
                 {d.quota_updated_at && (
-  <div className="mt-2 border-t border-[var(--y-border-soft)] pt-2 text-[10px] text-[var(--y-text-mute)]">
-    Quota diperbarui {formatDate(d.quota_updated_at)}
-  </div>
-)}
+                  <div className="mt-2 border-t border-[var(--y-border-soft)] pt-2 text-[10px] text-[var(--y-text-mute)]">
+                    Quota diperbarui {formatDate(d.quota_updated_at)}
+                  </div>
+                )}
               </motion.div>
             );
           })}
 
-          {/* Add drive card */}
+          {/* ⭐ Add drive card HANYA untuk manager */}
           {canConnect && (
             <motion.button
               initial={{ opacity: 0, y: 10 }}
@@ -492,53 +472,50 @@ export function DrivesView() {
         </div>
       )}
 
-      {/* Info card — Tips */}
+      {/* Info cards */}
       <div className="mt-5 flex items-start gap-3 rounded-2xl border border-[var(--y-border-soft)] bg-[rgba(34,211,238,0.05)] p-4">
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[rgba(34,211,238,0.15)]">
           <Mail size={16} className="text-[var(--y-accent)]" />
         </div>
         <div className="text-[13px] leading-relaxed text-[var(--y-text-dim)]">
           <b className="text-[var(--y-text)]">Storage pool tak terbatas.</b>{" "}
-          Hubungkan sebanyak mungkin akun Google Drive — YuditCloud
-          menggabungkan semua kapasitasnya menjadi satu cloud virtual. File
+          Semua akun Google Drive digabungkan menjadi satu cloud virtual. File
           baru otomatis dialokasikan ke drive dengan ruang tersisa paling
           efisien.
         </div>
       </div>
 
-      {/* Info card — Soft Delete */}
-      <div className="mt-3 flex items-start gap-3 rounded-2xl border border-[var(--y-border-soft)] bg-[rgba(168,85,247,0.05)] p-4">
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[rgba(168,85,247,0.15)]">
-          <Trash2 size={16} className="text-[#a855f7]" />
+      {canManage && (
+        <div className="mt-3 flex items-start gap-3 rounded-2xl border border-[var(--y-border-soft)] bg-[rgba(168,85,247,0.05)] p-4">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[rgba(168,85,247,0.15)]">
+            <Trash2 size={16} className="text-[#a855f7]" />
+          </div>
+          <div className="text-[13px] leading-relaxed text-[var(--y-text-dim)]">
+            <b className="text-[var(--y-text)]">
+              Hapus drive yang masih berisi file?
+            </b>{" "}
+            Boleh. File metadata tetap tersimpan (tidak dihapus permanen), tapi
+            disembunyikan dari UI. Kalau reconnect akun Google yang{" "}
+            <b>sama</b>, drive akan di-resurrect dan semua file lama muncul
+            kembali.
+          </div>
         </div>
-        <div className="text-[13px] leading-relaxed text-[var(--y-text-dim)]">
-          <b className="text-[var(--y-text)]">Hapus drive yang masih berisi file?</b>{" "}
-          Boleh. File metadata akan tetap tersimpan di database (tidak dihapus
-          permanen), tapi disembunyikan dari UI. Kalau Anda connect ulang akun
-          Google yang <b>sama</b> di kemudian hari, drive akan otomatis
-          di-resurrect dan semua file lama muncul kembali.
-        </div>
-      </div>
+      )}
 
-      {/* Info card — Security */}
       <div className="mt-3 flex items-start gap-3 rounded-2xl border border-[var(--y-border-soft)] bg-[rgba(245,158,11,0.05)] p-4">
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[rgba(245,158,11,0.15)]">
           <Shield size={16} className="text-[var(--y-warn)]" />
         </div>
         <div className="text-[13px] leading-relaxed text-[var(--y-text-dim)]">
-          <b className="text-[var(--y-text)]">Keamanan token.</b> Access
-          token &amp; refresh token dienkripsi dengan Fernet (AES-128 CBC)
-          menggunakan SECRET_KEY Anda. Jangan bagikan SECRET_KEY ke siapa pun.
-          Kalau perlu ganti SECRET_KEY, semua drive harus di-reconnect.
+          <b className="text-[var(--y-text)]">Keamanan token.</b> Access token
+          &amp; refresh token dienkripsi dengan Fernet (AES-128 CBC)
+          menggunakan SECRET_KEY Anda.
         </div>
       </div>
     </div>
   );
 }
 
-// =====================================================
-// STAT CHIP
-// =====================================================
 function StatChip({
   icon,
   label,
@@ -570,9 +547,6 @@ function StatChip({
   );
 }
 
-// =====================================================
-// GOOGLE DRIVE LOGO
-// =====================================================
 function GDriveLogo() {
   return (
     <svg width="22" height="22" viewBox="0 0 87.3 78">
