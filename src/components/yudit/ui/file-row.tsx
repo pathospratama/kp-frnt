@@ -179,7 +179,6 @@ export function FileRow({
     }
   };
 
-  // ⭐ Edit lokal — semua role dengan can_edit boleh
   const handleEditLocal = () => {
     if (!isDocx) {
       toast.error("Hanya file .docx yang bisa diedit");
@@ -195,19 +194,13 @@ export function FileRow({
     setEditingMode("local");
   };
 
-  // ⭐ Edit via Google Docs — HANYA manager (owner/super_admin)
+  // ⭐ Edit via Google Docs — HAPUS PENGECEKAN isManager
   const handleEditGoogleDocs = () => {
     if (!isDocx) {
       toast.error("Hanya file .docx yang bisa di-convert ke Google Docs");
       return;
     }
-    if (!isManager) {
-      toast.error(
-        "Mode Google Docs hanya tersedia untuk owner/super admin. " +
-          "Gunakan 'Edit Cepat' untuk mengedit dokumen ini.",
-      );
-      return;
-    }
+    // Pengecekan !isManager dihapus, semua yang punya izin edit bisa akses
     setEditingMode("google_docs");
   };
 
@@ -318,7 +311,7 @@ export function FileRow({
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
 
-                  {/* ⭐ Edit Cepat — semua role dengan can_edit */}
+                  {/* Edit Cepat */}
                   <DropdownMenuItem
                     onClick={handleEditLocal}
                     className="gap-2.5 py-2"
@@ -339,29 +332,28 @@ export function FileRow({
                     </div>
                   </DropdownMenuItem>
 
-                  {/* ⭐ Google Docs — HANYA manager */}
-                  {isManager && (
-                    <DropdownMenuItem
-                      onClick={handleEditGoogleDocs}
-                      className="gap-2.5 py-2"
-                    >
-                      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[rgba(66,133,244,0.15)]">
-                        <FileText size={15} className="text-[#4285f4]" />
+                  {/* ⭐ Google Docs — TAMPILKAN UNTUK SEMUA ROLE */}
+                  <DropdownMenuItem
+                    onClick={handleEditGoogleDocs}
+                    className="gap-2.5 py-2"
+                  >
+                    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[rgba(66,133,244,0.15)]">
+                      <FileText size={15} className="text-[#4285f4]" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 text-sm font-semibold text-[var(--y-text)]">
+                        Google Docs
+                        <span className="rounded-full bg-[rgba(16,185,129,0.15)] px-1.5 py-0.5 text-[8px] font-bold text-[#10b981]">
+                          NATIVE
+                        </span>
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 text-sm font-semibold text-[var(--y-text)]">
-                          Google Docs
-                          <span className="rounded-full bg-[rgba(16,185,129,0.15)] px-1.5 py-0.5 text-[8px] font-bold text-[#10b981]">
-                            NATIVE
-                          </span>
-                        </div>
-                        <div className="text-[10px] text-[var(--y-text-mute)]">
-                          Full fitur, fidelity 100%
-                        </div>
+                      <div className="text-[10px] text-[var(--y-text-mute)]">
+                        Full fitur, fidelity 100%
                       </div>
-                    </DropdownMenuItem>
-                  )}
+                    </div>
+                  </DropdownMenuItem>
 
+                  {/* Preview Asli */}
                   <DropdownMenuItem
                     onClick={handlePreviewFull}
                     className="gap-2.5 py-2"
@@ -382,7 +374,7 @@ export function FileRow({
                     </div>
                   </DropdownMenuItem>
 
-                  {/* ⭐ Assign — HANYA manager */}
+                  {/* Assign — Tetap Hanya Manager */}
                   {isManager && (
                     <>
                       <DropdownMenuSeparator />
