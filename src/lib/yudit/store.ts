@@ -77,12 +77,22 @@ export function defaultViewForRole(user: User | null): ViewKey {
   return isMember(user) ? "my-tasks" : "files";
 }
 
+// =====================================================
+// ⭐ CAN ACCESS VIEW — member boleh lihat semua view (read-only)
+// =====================================================
 export function canAccessView(user: User | null, view: ViewKey): boolean {
   if (!user) return false;
+
+  // Menu khusus member
   if (view === "my-tasks") return isMember(user);
+
+  // ⭐ Drives & Collaborators: SEMUA role boleh akses
+  // Member = read-only (action button disembunyikan di UI komponen)
+  // Owner/super_admin = full access
   if (view === "collaborators" || view === "drives") {
-    return canManageWorkspace(user);
+    return true;
   }
+
   return true;
 }
 
@@ -345,7 +355,6 @@ export const useYudit = create<YuditState>()(
         } catch (e) {
           set({ authLoading: false });
 
-          // ⭐ Handling error spesifik per status
           if (e instanceof ApiError) {
             if (e.status === 429) {
               const wait = e.retryAfter
@@ -483,7 +492,7 @@ export const useYudit = create<YuditState>()(
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
       // =====================================================
-      // DATA FETCH
+      // ⭐ DATA FETCH — accessible untuk semua role
       // =====================================================
       fetchFiles: async (params) => {
         set({ filesLoading: true });
@@ -497,11 +506,8 @@ export const useYudit = create<YuditState>()(
         }
       },
 
+      // ⭐ Member boleh fetch drives (read-only)
       fetchDrives: async () => {
-        if (!canManageWorkspace(get().user)) {
-          set({ drives: [], pool: EMPTY_POOL, drivesLoading: false });
-          return;
-        }
         set({ drivesLoading: true });
         try {
           const [drives, pool] = await Promise.all([
@@ -509,7 +515,6 @@ export const useYudit = create<YuditState>()(
             drivesApi.getPoolSummary().catch(() => EMPTY_POOL),
           ]);
 
-          // AUTO-CLEAR driveAuthError kalau drive sudah reconnect atau dihapus
           const currentErr = get().driveAuthError;
           let nextErr = currentErr;
           if (currentErr.email) {
@@ -555,11 +560,8 @@ export const useYudit = create<YuditState>()(
         }
       },
 
+      // ⭐ Member boleh fetch collaborators (read-only)
       fetchCollaborators: async () => {
-        if (!canManageWorkspace(get().user)) {
-          set({ collaborators: [], collaboratorsLoading: false });
-          return;
-        }
         set({ collaboratorsLoading: true });
         try {
           const res = await collabApi.listCollaborators();
@@ -672,7 +674,6 @@ export const useYudit = create<YuditState>()(
       // DRIVES
       // =====================================================
       refreshPool: async () => {
-        if (!canManageWorkspace(get().user)) return;
         try {
           const pool = await drivesApi.getPoolSummary();
           set({ pool: pool as PoolInfo });
@@ -915,7 +916,6 @@ export const useYudit = create<YuditState>()(
           }));
           toast("Link share dibuat", "success");
         } catch (e) {
-          // ⭐ 403 = tidak punya izin share → tutup modal, file tetap akses
           if (e instanceof ApiError && e.status === 403) {
             get().closeShare();
             toast(
@@ -926,7 +926,6 @@ export const useYudit = create<YuditState>()(
             );
             throw e;
           }
-          // ⭐ 410 = file terkait drive yang sudah dihapus
           if (e instanceof ApiError && e.status === 410) {
             get().closeShare();
             toast(
@@ -1116,12 +1115,10 @@ export function availableYears(files: FileItem[]): string[] {
 // GLOBAL EVENT LISTENERS
 // =====================================================
 if (typeof window !== "undefined") {
-  // ---- 1. Unauthorized (JWT invalid) → logout ----
   window.addEventListener("yudit:unauthorized", () => {
     useYudit.getState().logout();
   });
 
-  // ---- 2. Drive auth error → simpan state (JANGAN logout) ----
   window.addEventListener("yudit:drive-auth-error", ((e: Event) => {
     const detail = (e as CustomEvent<{
       email?: string | null;
