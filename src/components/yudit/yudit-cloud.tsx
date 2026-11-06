@@ -268,6 +268,7 @@ export function YuditCloud() {
     window.history.replaceState({}, "", "/");
   }, [isAuthenticated, user, setView, fetchDrives]);
 
+  // ⭐ FETCH DATA untuk SEMUA role (member = read-only)
   useEffect(() => {
     if (!isAuthenticated || !user) return;
 
@@ -290,11 +291,10 @@ export function YuditCloud() {
       fetchConversionJobs();
     }
 
-    if (canManageWorkspace(user)) {
-      fetchDrives();
-      fetchCollaborators();
-    }
-
+    // ⭐ Fetch drives & collaborators untuk semua role
+    // (member butuh data ini untuk sidebar badge & read-only views)
+    fetchDrives();
+    fetchCollaborators();
     fetchCategories();
   }, [
     isAuthenticated,
@@ -336,7 +336,6 @@ export function YuditCloud() {
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar />
 
-          {/* ⭐ ADAPTIVE MAIN — pakai .y-container (bukan max-w-6xl) */}
           <main className="flex-1 overflow-y-auto">
             <div className="y-container py-4 sm:py-6 lg:py-8">
               <DriveAuthBanner />
