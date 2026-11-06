@@ -67,9 +67,6 @@ function getInitial(value?: string | null): string {
   return normalized ? normalized.charAt(0).toUpperCase() : "?";
 }
 
-/**
- * ⭐ Parse error 400 dari backend menjadi pesan yang jelas untuk user.
- */
 function parseInviteError(err: unknown): {
   title: string;
   message: string;
@@ -86,7 +83,6 @@ function parseInviteError(err: unknown): {
   const detailLower = detail.toLowerCase();
   const status = err.status;
 
-  // ---- 400: Email sudah terdaftar ----
   if (status === 400 && detailLower.includes("email")) {
     if (
       detailLower.includes("sudah terdaftar") ||
@@ -108,7 +104,6 @@ function parseInviteError(err: unknown): {
     }
   }
 
-  // ---- 400: Role tidak valid ----
   if (status === 400 && detailLower.includes("role")) {
     return {
       title: "Role Tidak Valid",
@@ -117,7 +112,6 @@ function parseInviteError(err: unknown): {
     };
   }
 
-  // ---- 400: Generic ----
   if (status === 400) {
     return {
       title: "Data Tidak Valid",
@@ -126,7 +120,6 @@ function parseInviteError(err: unknown): {
     };
   }
 
-  // ---- 401: Token expired ----
   if (status === 401) {
     return {
       title: "Sesi Berakhir",
@@ -134,7 +127,6 @@ function parseInviteError(err: unknown): {
     };
   }
 
-  // ---- 403: Forbidden ----
   if (status === 403) {
     return {
       title: "Akses Ditolak",
@@ -148,7 +140,6 @@ function parseInviteError(err: unknown): {
     };
   }
 
-  // ---- 500: Server error ----
   if (status >= 500) {
     return {
       title: "Server Error",
@@ -157,7 +148,6 @@ function parseInviteError(err: unknown): {
     };
   }
 
-  // ---- Fallback ----
   return {
     title: "Gagal Mengundang",
     message: detail || "Terjadi kesalahan.",
@@ -165,7 +155,7 @@ function parseInviteError(err: unknown): {
 }
 
 // =====================================================
-// MAIN VIEW
+// ⭐ MAIN VIEW — read-only untuk member
 // =====================================================
 export function CollaboratorsView() {
   const user = useYudit((state) => state.user);
@@ -176,6 +166,7 @@ export function CollaboratorsView() {
   const [search, setSearch] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
 
+  // ⭐ canManage = full access; member = read-only
   const canManage = canManageWorkspace(user);
   const isOwner = isOwnerFn(user);
 
@@ -195,13 +186,10 @@ export function CollaboratorsView() {
     }
   }, []);
 
+  // ⭐ Semua role boleh load, bukan hanya manager
   useEffect(() => {
-    if (canManage) {
-      void load();
-    } else {
-      setLoading(false);
-    }
-  }, [canManage, load]);
+    void load();
+  }, [load]);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
@@ -228,6 +216,10 @@ export function CollaboratorsView() {
   );
 
   const handleToggleActive = (collaborator: Collaborator) => {
+    if (!canManage) {
+      toast.error("Hanya owner/super admin yang bisa ubah status");
+      return;
+    }
     showConfirm(
       collaborator.is_active ? "Nonaktifkan akun?" : "Aktifkan akun?",
       collaborator.is_active
@@ -252,6 +244,10 @@ export function CollaboratorsView() {
   };
 
   const handleResetPassword = (collaborator: Collaborator) => {
+    if (!canManage) {
+      toast.error("Hanya owner/super admin yang bisa reset password");
+      return;
+    }
     showConfirm(
       "Reset password collaborator?",
       `Password ${collaborator.email} akan direset menjadi password sementara yang unik dan wajib diganti saat login berikutnya.`,
@@ -292,6 +288,10 @@ export function CollaboratorsView() {
   };
 
   const handleChangeRole = (collaborator: Collaborator) => {
+    if (!canManage) {
+      toast.error("Hanya owner yang bisa ubah role");
+      return;
+    }
     const nextRole =
       collaborator.role === "super_admin" ? "member" : "super_admin";
     showConfirm(
@@ -312,6 +312,10 @@ export function CollaboratorsView() {
   };
 
   const handleRemove = (collaborator: Collaborator) => {
+    if (!canManage) {
+      toast.error("Hanya owner yang bisa hapus collaborator");
+      return;
+    }
     showConfirm(
       "Hapus collaborator?",
       `${collaborator.email} akan dihapus permanen. Assignment dokumen miliknya juga akan dicabut.`,
@@ -327,25 +331,6 @@ export function CollaboratorsView() {
     );
   };
 
-  if (!canManage) {
-    return (
-      <section className="grid min-h-[320px] place-items-center px-4 py-12">
-        <div className="w-full max-w-sm rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-8 text-center shadow-sm">
-          <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-[rgba(239,68,68,0.12)]">
-            <AlertCircle size={26} className="text-[var(--y-danger)]" />
-          </div>
-          <h2 className="mb-2 text-base font-bold text-[var(--y-text)]">
-            Akses Ditolak
-          </h2>
-          <p className="text-sm leading-relaxed text-[var(--y-text-dim)]">
-            Hanya owner atau super admin yang dapat mengelola collaborator
-            workspace.
-          </p>
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section className="y-anim-fade min-w-0 space-y-5">
       {/* Header */}
@@ -360,7 +345,9 @@ export function CollaboratorsView() {
             </h1>
           </div>
           <p className="text-[13px] text-[var(--y-text-dim)]">
-            Kelola anggota tim dan hak akses workspace Anda.
+            {canManage
+              ? "Kelola anggota tim dan hak akses workspace Anda."
+              : "Daftar anggota workspace (read-only)."}
           </p>
         </div>
 
@@ -374,16 +361,32 @@ export function CollaboratorsView() {
             <RefreshCw size={14} className={cn(loading && "animate-spin")} />
             Refresh
           </button>
-          <button
-            type="button"
-            onClick={() => setInviteOpen(true)}
-            className="y-gradient-brand y-glow-primary inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-[13px] font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 sm:flex-none"
-          >
-            <UserPlus size={15} />
-            Undang Collaborator
-          </button>
+          {canManage && (
+            <button
+              type="button"
+              onClick={() => setInviteOpen(true)}
+              className="y-gradient-brand y-glow-primary inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-[13px] font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 sm:flex-none"
+            >
+              <UserPlus size={15} />
+              Undang Collaborator
+            </button>
+          )}
         </div>
       </div>
+
+      {/* ⭐ Info banner untuk member */}
+      {!canManage && (
+        <div className="flex items-start gap-3 rounded-2xl border border-[var(--y-border-soft)] bg-[rgba(99,102,241,0.06)] p-4">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[rgba(99,102,241,0.15)]">
+            <Info size={16} className="text-[var(--y-primary)]" />
+          </div>
+          <div className="text-[13px] leading-relaxed text-[var(--y-text-dim)]">
+            <b className="text-[var(--y-text)]">Mode read-only.</b> Hanya
+            owner/super admin yang bisa mengundang, mengubah role, atau
+            menghapus collaborator.
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -460,9 +463,11 @@ export function CollaboratorsView() {
           <p className="mt-1 max-w-sm text-xs leading-relaxed text-[var(--y-text-dim)]">
             {search
               ? "Coba kata kunci email atau username yang berbeda."
-              : "Undang anggota tim agar mereka dapat mengakses workspace sesuai role."}
+              : canManage
+                ? "Undang anggota tim agar mereka dapat mengakses workspace sesuai role."
+                : "Owner belum mengundang anggota tim ke workspace."}
           </p>
-          {!search && (
+          {!search && canManage && (
             <button
               type="button"
               onClick={() => setInviteOpen(true)}
@@ -480,6 +485,7 @@ export function CollaboratorsView() {
                 key={collaborator.id}
                 collab={collaborator}
                 isOwner={isOwner}
+                canManage={canManage}
                 index={index}
                 onToggleActive={() => handleToggleActive(collaborator)}
                 onResetPassword={() => handleResetPassword(collaborator)}
@@ -517,12 +523,14 @@ export function CollaboratorsView() {
         </div>
       </div>
 
-      <InviteCollaboratorModal
-        open={inviteOpen}
-        onClose={() => setInviteOpen(false)}
-        onSuccess={load}
-        isOwner={isOwner}
-      />
+      {canManage && (
+        <InviteCollaboratorModal
+          open={inviteOpen}
+          onClose={() => setInviteOpen(false)}
+          onSuccess={load}
+          isOwner={isOwner}
+        />
+      )}
     </section>
   );
 }
@@ -567,11 +575,12 @@ function StatCard({
 }
 
 // =====================================================
-// COLLABORATOR ROW
+// ⭐ COLLABORATOR ROW — action buttons hanya untuk manager
 // =====================================================
 function CollaboratorRow({
   collab,
   isOwner,
+  canManage,
   index,
   onToggleActive,
   onResetPassword,
@@ -580,6 +589,7 @@ function CollaboratorRow({
 }: {
   collab: Collaborator;
   isOwner: boolean;
+  canManage: boolean;
   index: number;
   onToggleActive: () => void;
   onResetPassword: () => void;
@@ -659,54 +669,57 @@ function CollaboratorRow({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-1.5 pl-[52px] sm:ml-auto sm:flex sm:shrink-0 sm:justify-end sm:pl-0">
-        {isOwner && (
+      {/* ⭐ ACTION BUTTONS — hanya untuk manager */}
+      {canManage && (
+        <div className="grid grid-cols-2 gap-1.5 pl-[52px] sm:ml-auto sm:flex sm:shrink-0 sm:justify-end sm:pl-0">
+          {isOwner && (
+            <ActionButton
+              label={
+                collab.role === "super_admin"
+                  ? "Jadikan Member"
+                  : "Jadikan Super Admin"
+              }
+              onClick={onChangeRole}
+              tone="neutral"
+            >
+              {collab.role === "super_admin" ? (
+                <ShieldAlert size={14} />
+              ) : (
+                <Shield size={14} />
+              )}
+              <span className="sm:hidden">Role</span>
+            </ActionButton>
+          )}
           <ActionButton
-            label={
-              collab.role === "super_admin"
-                ? "Jadikan Member"
-                : "Jadikan Super Admin"
-            }
-            onClick={onChangeRole}
+            label="Reset password"
+            onClick={onResetPassword}
+            tone="warning"
+          >
+            <KeyRound size={14} />
+            <span className="sm:hidden">Reset PW</span>
+          </ActionButton>
+          <ActionButton
+            label={collab.is_active ? "Nonaktifkan akun" : "Aktifkan akun"}
+            onClick={onToggleActive}
             tone="neutral"
           >
-            {collab.role === "super_admin" ? (
-              <ShieldAlert size={14} />
-            ) : (
-              <Shield size={14} />
-            )}
-            <span className="sm:hidden">Role</span>
+            {collab.is_active ? <UserX size={14} /> : <UserCheck size={14} />}
+            <span className="sm:hidden">
+              {collab.is_active ? "Nonaktifkan" : "Aktifkan"}
+            </span>
           </ActionButton>
-        )}
-        <ActionButton
-          label="Reset password"
-          onClick={onResetPassword}
-          tone="warning"
-        >
-          <KeyRound size={14} />
-          <span className="sm:hidden">Reset PW</span>
-        </ActionButton>
-        <ActionButton
-          label={collab.is_active ? "Nonaktifkan akun" : "Aktifkan akun"}
-          onClick={onToggleActive}
-          tone="neutral"
-        >
-          {collab.is_active ? <UserX size={14} /> : <UserCheck size={14} />}
-          <span className="sm:hidden">
-            {collab.is_active ? "Nonaktifkan" : "Aktifkan"}
-          </span>
-        </ActionButton>
-        {isOwner && (
-          <ActionButton
-            label="Hapus collaborator"
-            onClick={onRemove}
-            tone="danger"
-          >
-            <Trash2 size={14} />
-            <span className="sm:hidden">Hapus</span>
-          </ActionButton>
-        )}
-      </div>
+          {isOwner && (
+            <ActionButton
+              label="Hapus collaborator"
+              onClick={onRemove}
+              tone="danger"
+            >
+              <Trash2 size={14} />
+              <span className="sm:hidden">Hapus</span>
+            </ActionButton>
+          )}
+        </div>
+      )}
     </motion.article>
   );
 }
@@ -753,9 +766,6 @@ function StatusBadge({
   );
 }
 
-// =====================================================
-// ACTION BUTTON
-// =====================================================
 function ActionButton({
   children,
   label,
@@ -793,7 +803,7 @@ function ActionButton({
 }
 
 // =====================================================
-// INVITE MODAL
+// INVITE MODAL — tetap sama, hanya dipanggil oleh manager
 // =====================================================
 function InviteCollaboratorModal({
   open,
@@ -817,8 +827,6 @@ function InviteCollaboratorModal({
   } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [copiedAll, setCopiedAll] = useState(false);
-
-  // ⭐ Error state untuk tampil inline (selain toast)
   const [inlineError, setInlineError] = useState<{
     title: string;
     message: string;
@@ -852,7 +860,6 @@ function InviteCollaboratorModal({
       return;
     }
 
-    // Validasi client-side sederhana
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       setInlineError({
         title: "Format Email Tidak Valid",
@@ -885,10 +892,8 @@ function InviteCollaboratorModal({
       }
       await onSuccess();
     } catch (err: unknown) {
-      // ⭐ Parse error 400/403 dengan detail yang jelas
       const parsed = parseInviteError(err);
       setInlineError(parsed);
-      // Tetap tampilkan toast sebagai feedback utama
       toast.error(parsed.message, { duration: 8000 });
     } finally {
       setSubmitting(false);
@@ -947,9 +952,6 @@ function InviteCollaboratorModal({
             </button>
 
             {created ? (
-              // =====================================================
-              // SUCCESS STATE
-              // =====================================================
               <div>
                 <div className="pr-8 text-center">
                   <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-emerald-500/10 text-[var(--y-success)]">
@@ -1052,9 +1054,6 @@ function InviteCollaboratorModal({
                 </div>
               </div>
             ) : (
-              // =====================================================
-              // FORM STATE
-              // =====================================================
               <form onSubmit={handleSubmit} className="pt-1">
                 <div className="mb-5 flex items-start gap-3 pr-8">
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[rgba(249,91,47,0.12)] text-[var(--y-primary)]">
@@ -1071,7 +1070,6 @@ function InviteCollaboratorModal({
                   </div>
                 </div>
 
-                {/* ⭐ INLINE ERROR — tampil jelas kalau ada 400 */}
                 {inlineError && (
                   <div
                     className="mb-4 rounded-xl border border-red-500/30 bg-red-500/8 p-3"
@@ -1211,9 +1209,6 @@ function InviteCollaboratorModal({
   );
 }
 
-// =====================================================
-// ROLE OPTION
-// =====================================================
 function RoleOption({
   active,
   onClick,
