@@ -41,9 +41,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// =====================================================
-// GRID CONSTANT — SAMA PERSIS dengan header FilesView
-// =====================================================
 const GRID_CLASSNAME = cn(
   "grid items-center gap-2 sm:gap-3 rounded-xl border border-transparent",
   "px-2 sm:px-3 py-2.5 transition-colors",
@@ -53,9 +50,6 @@ const GRID_CLASSNAME = cn(
   "lg:grid-cols-[44px_minmax(0,1fr)_100px_160px_200px]",
 );
 
-// =====================================================
-// HELPERS
-// =====================================================
 function isDocxFile(file: FileItem): boolean {
   const ext = extOf(file.name);
   if (ext !== "docx") return false;
@@ -83,14 +77,10 @@ function canDeleteFile(file: FileItem, user: User | null): boolean {
 
 function canShareFile(file: FileItem, user: User | null): boolean {
   if (!user) return false;
-  // Owner & super_admin: selalu boleh share file di workspace
   if (user.role === "owner" || user.role === "super_admin") return true;
-  // Member: hanya kalau backend kasih izin
   return file.can_share_to_me === true;
 }
-// =====================================================
-// PROPS
-// =====================================================
+
 interface FileRowProps {
   file: FileItem;
   index?: number;
@@ -99,9 +89,6 @@ interface FileRowProps {
   assignmentCount?: number;
 }
 
-// =====================================================
-// FILE ROW
-// =====================================================
 export function FileRow({
   file,
   index = 0,
@@ -129,9 +116,6 @@ export function FileRow({
   const isPdf = extOf(file.name) === "pdf";
   const isAssignedToSomeone = assignmentCount > 0;
 
-  // =====================================================
-  // HANDLERS
-  // =====================================================
   const handleDelete = () => {
     showConfirm(
       "Hapus file?",
@@ -195,6 +179,7 @@ export function FileRow({
     }
   };
 
+  // ⭐ Edit lokal — semua role dengan can_edit boleh
   const handleEditLocal = () => {
     if (!isDocx) {
       toast.error("Hanya file .docx yang bisa diedit");
@@ -210,9 +195,17 @@ export function FileRow({
     setEditingMode("local");
   };
 
+  // ⭐ Edit via Google Docs — HANYA manager (owner/super_admin)
   const handleEditGoogleDocs = () => {
     if (!isDocx) {
       toast.error("Hanya file .docx yang bisa di-convert ke Google Docs");
+      return;
+    }
+    if (!isManager) {
+      toast.error(
+        "Mode Google Docs hanya tersedia untuk owner/super admin. " +
+          "Gunakan 'Edit Cepat' untuk mengedit dokumen ini.",
+      );
       return;
     }
     setEditingMode("google_docs");
@@ -231,9 +224,6 @@ export function FileRow({
     fetchFiles();
   };
 
-  // =====================================================
-  // RENDER
-  // =====================================================
   return (
     <>
       <motion.div
@@ -245,7 +235,6 @@ export function FileRow({
         }}
         className={cn("group", GRID_CLASSNAME)}
       >
-        {/* Kolom 1: Icon */}
         <button
           onClick={() => openPreview(file.id)}
           className="flex items-center justify-center"
@@ -254,7 +243,6 @@ export function FileRow({
           <FileIcon mime={file.mime_type || ""} name={file.name} />
         </button>
 
-        {/* Kolom 2: Name + Meta inline (mobile) */}
         <button
           onClick={() => openPreview(file.id)}
           className="flex min-w-0 flex-col text-left"
@@ -270,7 +258,6 @@ export function FileRow({
             </span>
           )}
 
-          {/* ⭐ Meta inline — hanya tampil di mobile (kolom Size & Category disembunyikan) */}
           <div className="mt-0.5 flex flex-wrap items-center gap-1.5 sm:hidden">
             <span className="text-[10px] tabular-nums text-[var(--y-text-mute)]">
               {formatBytes(file.size)}
@@ -283,7 +270,6 @@ export function FileRow({
             )}
           </div>
 
-          {/* Badges: Google Docs & Assigned */}
           <div className="mt-0.5 flex flex-wrap items-center gap-1">
             {file.google_doc_id && (
               <span className="inline-flex w-fit items-center gap-1 rounded-full bg-[rgba(66,133,244,0.15)] px-1.5 py-0.5 text-[9px] font-semibold text-[#4285f4]">
@@ -300,19 +286,15 @@ export function FileRow({
           </div>
         </button>
 
-        {/* Kolom 3: Size — tablet & desktop */}
         <div className="hidden text-xs tabular-nums text-[var(--y-text-dim)] sm:block sm:text-right">
           {formatBytes(file.size)}
         </div>
 
-        {/* Kolom 4: Category — desktop only */}
         <div className="hidden min-w-0 lg:block">
           <CategoryBadge category={file.category} />
         </div>
 
-        {/* Kolom 5 (desktop) / Kolom 3 (tablet) / Kolom 3 (mobile): Actions */}
         <div className="file-row-actions-wrapper">
-          {/* ⭐ Actions — behavior ditentukan CSS @media(hover) */}
           <div
             className={cn(
               "file-row-actions",
@@ -336,6 +318,7 @@ export function FileRow({
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
 
+                  {/* ⭐ Edit Cepat — semua role dengan can_edit */}
                   <DropdownMenuItem
                     onClick={handleEditLocal}
                     className="gap-2.5 py-2"
@@ -356,25 +339,28 @@ export function FileRow({
                     </div>
                   </DropdownMenuItem>
 
-                  <DropdownMenuItem
-                    onClick={handleEditGoogleDocs}
-                    className="gap-2.5 py-2"
-                  >
-                    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[rgba(66,133,244,0.15)]">
-                      <FileText size={15} className="text-[#4285f4]" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 text-sm font-semibold text-[var(--y-text)]">
-                        Google Docs
-                        <span className="rounded-full bg-[rgba(16,185,129,0.15)] px-1.5 py-0.5 text-[8px] font-bold text-[#10b981]">
-                          NATIVE
-                        </span>
+                  {/* ⭐ Google Docs — HANYA manager */}
+                  {isManager && (
+                    <DropdownMenuItem
+                      onClick={handleEditGoogleDocs}
+                      className="gap-2.5 py-2"
+                    >
+                      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[rgba(66,133,244,0.15)]">
+                        <FileText size={15} className="text-[#4285f4]" />
                       </div>
-                      <div className="text-[10px] text-[var(--y-text-mute)]">
-                        Full fitur, fidelity 100%
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 text-sm font-semibold text-[var(--y-text)]">
+                          Google Docs
+                          <span className="rounded-full bg-[rgba(16,185,129,0.15)] px-1.5 py-0.5 text-[8px] font-bold text-[#10b981]">
+                            NATIVE
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-[var(--y-text-mute)]">
+                          Full fitur, fidelity 100%
+                        </div>
                       </div>
-                    </div>
-                  </DropdownMenuItem>
+                    </DropdownMenuItem>
+                  )}
 
                   <DropdownMenuItem
                     onClick={handlePreviewFull}
@@ -396,6 +382,7 @@ export function FileRow({
                     </div>
                   </DropdownMenuItem>
 
+                  {/* ⭐ Assign — HANYA manager */}
                   {isManager && (
                     <>
                       <DropdownMenuSeparator />
@@ -457,12 +444,10 @@ export function FileRow({
             )}
           </div>
 
-          {/* ⭐ Date — desktop/mouse-only, auto-hidden saat hover / always-show */}
           <span className="file-row-date">{formatDate(file.created_at)}</span>
         </div>
       </motion.div>
 
-      {/* Editor Portals */}
       {editingMode &&
         typeof window !== "undefined" &&
         createPortal(
@@ -500,9 +485,6 @@ export function FileRow({
   );
 }
 
-// =====================================================
-// ICON BUTTON
-// =====================================================
 function IconBtn({
   children,
   onClick,
