@@ -6,7 +6,8 @@ export type ViewKey =
   | "drives"
   | "convert"
   | "collaborators"
-  | "my-tasks";
+  | "my-tasks"
+  | "profile";   // ⭐ TAMBAH
 
 // =====================================================
 // FILE
