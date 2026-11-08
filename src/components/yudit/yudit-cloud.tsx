@@ -264,11 +264,12 @@ export function YuditCloud() {
       toast.error(errorMessages[oauthError] || `Gagal connect: ${oauthError}`);
     }
 
-    fetchDrives();
+    fetchDrives().catch(() => {});
     window.history.replaceState({}, "", "/");
   }, [isAuthenticated, user, setView, fetchDrives]);
 
   // ⭐ FETCH DATA untuk SEMUA role (member = read-only)
+  // ⭐ Semua fetch dibungkus .catch() SILENT agar 401 tidak spam console
   useEffect(() => {
     if (!isAuthenticated || !user) return;
 
@@ -283,19 +284,18 @@ export function YuditCloud() {
 
     const filesViews = ["files", "my-tasks", "monthly", "stats", "convert"];
     if (filesViews.includes(currentView)) {
-      fetchFiles();
+      fetchFiles().catch(() => {});
     }
 
     if (currentView === "convert") {
-      fetchConversionOperations();
-      fetchConversionJobs();
+      fetchConversionOperations().catch(() => {});
+      fetchConversionJobs().catch(() => {});
     }
 
-    // ⭐ Fetch drives & collaborators untuk semua role
-    // (member butuh data ini untuk sidebar badge & read-only views)
-    fetchDrives();
-    fetchCollaborators();
-    fetchCategories();
+    // ⭐ Fetch drives, collabs, categories untuk semua role
+    fetchDrives().catch(() => {});
+    fetchCollaborators().catch(() => {});
+    fetchCategories().catch(() => {});
   }, [
     isAuthenticated,
     user,
