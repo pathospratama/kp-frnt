@@ -78,11 +78,16 @@ export function defaultViewForRole(user: User | null): ViewKey {
 }
 
 // =====================================================
-// CAN ACCESS VIEW — member boleh lihat semua view (read-only)
+// CAN ACCESS VIEW — semua role bisa akses semua view
+// (member = read-only untuk view tertentu, dikontrol via UI)
 // =====================================================
 export function canAccessView(user: User | null, view: ViewKey): boolean {
   if (!user) return false;
+
+  // Menu khusus member
   if (view === "my-tasks") return isMember(user);
+
+  // Profile, drives, collaborators, files, dll — semua role boleh
   return true;
 }
 
@@ -491,7 +496,7 @@ export const useYudit = create<YuditState>()(
           set({ files: files as FileItem[], filesLoading: false });
         } catch (e) {
           set({ filesLoading: false });
-          // ⭐ Silent untuk 401 — sudah di-handle interceptor (logout)
+          // Silent untuk 401 — sudah di-handle interceptor (logout)
           if (e instanceof ApiError && e.status === 401) return;
           const msg = e instanceof ApiError ? e.detail : "Gagal memuat file";
           toast(msg, "error");
@@ -525,7 +530,6 @@ export const useYudit = create<YuditState>()(
           });
         } catch (e) {
           set({ drivesLoading: false });
-          // ⭐ Silent untuk 401
           if (e instanceof ApiError && e.status === 401) return;
           const msg = e instanceof ApiError ? e.detail : "Gagal memuat drive";
           toast(msg, "error");
@@ -547,7 +551,6 @@ export const useYudit = create<YuditState>()(
             })),
           });
         } catch (e) {
-          // ⭐ Silent untuk 401
           if (e instanceof ApiError && e.status === 401) return;
           const msg =
             e instanceof ApiError ? e.detail : "Gagal memuat kategori";
@@ -562,7 +565,6 @@ export const useYudit = create<YuditState>()(
           set({ collaborators: res, collaboratorsLoading: false });
         } catch (e) {
           set({ collaboratorsLoading: false });
-          // ⭐ Silent untuk 401
           if (e instanceof ApiError && e.status === 401) return;
           const msg =
             e instanceof ApiError ? e.detail : "Gagal memuat collaborators";
