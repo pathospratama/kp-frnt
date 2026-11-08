@@ -66,7 +66,7 @@ function canEditFile(file: FileItem, user: User | null): boolean {
   if (!user) return false;
   if (!isDocxFile(file)) return false;
   if (user.role === "owner" || user.role === "super_admin") return true;
-  return file.can_edit_to_me !== false;
+  return file.can_edit_to_me === true;
 }
 
 function canDeleteFile(file: FileItem, user: User | null): boolean {
@@ -75,10 +75,9 @@ function canDeleteFile(file: FileItem, user: User | null): boolean {
   return file.can_delete_to_me === true;
 }
 
+// ⭐ Semua role selalu bisa share (backend sudah izinkan)
 function canShareFile(file: FileItem, user: User | null): boolean {
-  if (!user) return false;
-  if (user.role === "owner" || user.role === "super_admin") return true;
-  return file.can_share_to_me === true;
+  return !!user;
 }
 
 interface FileRowProps {
@@ -194,13 +193,11 @@ export function FileRow({
     setEditingMode("local");
   };
 
-  // ⭐ Edit via Google Docs — HAPUS PENGECEKAN isManager
   const handleEditGoogleDocs = () => {
     if (!isDocx) {
       toast.error("Hanya file .docx yang bisa di-convert ke Google Docs");
       return;
     }
-    // Pengecekan !isManager dihapus, semua yang punya izin edit bisa akses
     setEditingMode("google_docs");
   };
 
@@ -311,7 +308,6 @@ export function FileRow({
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
 
-                  {/* Edit Cepat */}
                   <DropdownMenuItem
                     onClick={handleEditLocal}
                     className="gap-2.5 py-2"
@@ -332,7 +328,6 @@ export function FileRow({
                     </div>
                   </DropdownMenuItem>
 
-                  {/* ⭐ Google Docs — TAMPILKAN UNTUK SEMUA ROLE */}
                   <DropdownMenuItem
                     onClick={handleEditGoogleDocs}
                     className="gap-2.5 py-2"
@@ -353,7 +348,6 @@ export function FileRow({
                     </div>
                   </DropdownMenuItem>
 
-                  {/* Preview Asli */}
                   <DropdownMenuItem
                     onClick={handlePreviewFull}
                     className="gap-2.5 py-2"
@@ -374,7 +368,6 @@ export function FileRow({
                     </div>
                   </DropdownMenuItem>
 
-                  {/* Assign — Tetap Hanya Manager */}
                   {isManager && (
                     <>
                       <DropdownMenuSeparator />
@@ -411,16 +404,19 @@ export function FileRow({
               </span>
             )}
 
+            {/* ⭐ Preview — Semua role */}
             <IconBtn label="Preview" onClick={() => openPreview(file.id)}>
               <Eye size={14} />
             </IconBtn>
 
+            {/* ⭐ Share — Semua role */}
             {canShare && (
               <IconBtn label="Bagikan" onClick={() => openShare(file.id)}>
                 <Share2 size={14} />
               </IconBtn>
             )}
 
+            {/* ⭐ Download — Semua role */}
             <IconBtn label="Download" onClick={handleDownload}>
               {downloading ? (
                 <Loader2 size={14} className="animate-spin" />
@@ -429,6 +425,7 @@ export function FileRow({
               )}
             </IconBtn>
 
+            {/* ⭐ Hapus — Hanya jika can_delete */}
             {canDelete && (
               <IconBtn label="Hapus" danger onClick={handleDelete}>
                 <Trash2 size={14} />
