@@ -7,7 +7,7 @@
  *
  * Fitur:
  * - Auto-attach Bearer token
- * - Auto-logout saat 401 JWT (bukan Drive)
+ * - Auto-logout saat 401 JWT (bukan Drive) dengan THROTTLE
  * - Deteksi Drive auth error via header & message (CORS-safe)
  * - Parse error dari Blob & JSON (termasuk FastAPI validation errors)
  */
@@ -146,6 +146,14 @@ async function extractErrorDetail(data: unknown): Promise<string> {
     // Handle detail string biasa (FastAPI HTTPException)
     if (typeof obj.detail === "string") return obj.detail;
 
+    // Handle detail object dari backend error format baru
+    // { "detail": { "detail": "...", "code": "...", "request_id": "..." } }
+    if (typeof obj.detail === "object" && obj.detail !== null) {
+      const d = obj.detail as Record<string, unknown>;
+      if (typeof d.detail === "string") return d.detail;
+      if (typeof d.message === "string") return d.message;
+    }
+
     // Handle message string (custom error format)
     if (typeof obj.message === "string") return obj.message;
 
@@ -176,6 +184,23 @@ function looksLikeDriveAuthMessage(detail: string): boolean {
 }
 
 // =====================================================
+// ⭐ UNAUTHORIZED THROTTLE — cegah spam 401
+// =====================================================
+let lastUnauthorizedAt = 0;
+const UNAUTHORIZED_THROTTLE_MS = 1500; // 1.5 detik
+
+function triggerUnauthorizedOnce() {
+  if (typeof window === "undefined") return;
+  const now = Date.now();
+  if (now - lastUnauthorizedAt < UNAUTHORIZED_THROTTLE_MS) {
+    return; // Skip — baru saja logout
+  }
+  lastUnauthorizedAt = now;
+  clearToken();
+  window.dispatchEvent(new CustomEvent("yudit:unauthorized"));
+}
+
+// =====================================================
 // ApiError CLASS
 // =====================================================
 export class ApiError extends Error {
@@ -184,9 +209,8 @@ export class ApiError extends Error {
   isDriveError?: boolean;
   driveEmail?: string;
   driveId?: string;
-  /** ⭐ Kode error spesifik dari backend (kalau ada) */
   code?: string;
-  requestId?: string;       // ⭐ TAMBAH
+  requestId?: string;
   retryAfter?: number;
 
   constructor(status: number, detail: string, code?: string) {
@@ -230,7 +254,7 @@ api.interceptors.response.use(
       status === 401 && looksLikeDriveAuthMessage(detail);
     const isDriveError = headerDriveError || messageDriveError;
 
-    // ⭐ Rate limit handling — JANGAN logout, tampilkan retry-after
+    // ⭐ Rate limit handling
     let retryAfter: number | undefined;
     if (status === 429) {
       const ra = headers["retry-after"];
@@ -240,12 +264,14 @@ api.interceptors.response.use(
       }
     }
 
-    // Auto-logout hanya 401 JWT, bukan Drive, bukan public
-    if (status === 401 && !isPublicPath(url) && !isDriveError && getToken()) {
-      clearToken();
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("yudit:unauthorized"));
-      }
+    // ⭐ Auto-logout hanya 401 JWT, bukan Drive, bukan public, dengan THROTTLE
+    if (
+      status === 401 &&
+      !isPublicPath(url) &&
+      !isDriveError &&
+      getToken()
+    ) {
+      triggerUnauthorizedOnce();
     }
 
     const apiError = new ApiError(
