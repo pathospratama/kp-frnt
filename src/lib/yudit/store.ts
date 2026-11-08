@@ -78,21 +78,11 @@ export function defaultViewForRole(user: User | null): ViewKey {
 }
 
 // =====================================================
-// ⭐ CAN ACCESS VIEW — member boleh lihat semua view (read-only)
+// CAN ACCESS VIEW — member boleh lihat semua view (read-only)
 // =====================================================
 export function canAccessView(user: User | null, view: ViewKey): boolean {
   if (!user) return false;
-
-  // Menu khusus member
   if (view === "my-tasks") return isMember(user);
-
-  // ⭐ Drives & Collaborators: SEMUA role boleh akses
-  // Member = read-only (action button disembunyikan di UI komponen)
-  // Owner/super_admin = full access
-  if (view === "collaborators" || view === "drives") {
-    return true;
-  }
-
   return true;
 }
 
@@ -492,7 +482,7 @@ export const useYudit = create<YuditState>()(
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
       // =====================================================
-      // ⭐ DATA FETCH — accessible untuk semua role
+      // DATA FETCH — accessible untuk semua role
       // =====================================================
       fetchFiles: async (params) => {
         set({ filesLoading: true });
@@ -501,12 +491,13 @@ export const useYudit = create<YuditState>()(
           set({ files: files as FileItem[], filesLoading: false });
         } catch (e) {
           set({ filesLoading: false });
+          // ⭐ Silent untuk 401 — sudah di-handle interceptor (logout)
+          if (e instanceof ApiError && e.status === 401) return;
           const msg = e instanceof ApiError ? e.detail : "Gagal memuat file";
           toast(msg, "error");
         }
       },
 
-      // ⭐ Member boleh fetch drives (read-only)
       fetchDrives: async () => {
         set({ drivesLoading: true });
         try {
@@ -534,6 +525,8 @@ export const useYudit = create<YuditState>()(
           });
         } catch (e) {
           set({ drivesLoading: false });
+          // ⭐ Silent untuk 401
+          if (e instanceof ApiError && e.status === 401) return;
           const msg = e instanceof ApiError ? e.detail : "Gagal memuat drive";
           toast(msg, "error");
         }
@@ -554,13 +547,14 @@ export const useYudit = create<YuditState>()(
             })),
           });
         } catch (e) {
+          // ⭐ Silent untuk 401
+          if (e instanceof ApiError && e.status === 401) return;
           const msg =
             e instanceof ApiError ? e.detail : "Gagal memuat kategori";
           toast(msg, "error");
         }
       },
 
-      // ⭐ Member boleh fetch collaborators (read-only)
       fetchCollaborators: async () => {
         set({ collaboratorsLoading: true });
         try {
@@ -568,6 +562,8 @@ export const useYudit = create<YuditState>()(
           set({ collaborators: res, collaboratorsLoading: false });
         } catch (e) {
           set({ collaboratorsLoading: false });
+          // ⭐ Silent untuk 401
+          if (e instanceof ApiError && e.status === 401) return;
           const msg =
             e instanceof ApiError ? e.detail : "Gagal memuat collaborators";
           toast(msg, "error");
@@ -589,6 +585,7 @@ export const useYudit = create<YuditState>()(
               : [],
           });
         } catch (e) {
+          if (e instanceof ApiError && e.status === 401) return;
           const msg =
             e instanceof ApiError ? e.detail : "Gagal memuat operasi konversi";
           toast(msg, "error");
@@ -600,6 +597,7 @@ export const useYudit = create<YuditState>()(
           const jobs = await convApi.listJobs(50);
           set({ conversionJobs: jobs });
         } catch (e) {
+          if (e instanceof ApiError && e.status === 401) return;
           const msg =
             e instanceof ApiError ? e.detail : "Gagal memuat riwayat konversi";
           toast(msg, "error");
