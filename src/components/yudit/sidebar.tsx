@@ -12,6 +12,7 @@ import {
   FileCog,
   Users,
   ClipboardCheck,
+  User as UserIcon,
 } from "lucide-react";
 import { useYudit, canManageWorkspace } from "@/lib/yudit/store";
 import type { ViewKey, UserRole } from "@/lib/yudit/types";
@@ -25,7 +26,7 @@ interface NavItem {
 }
 
 // =====================================================
-// ⭐ NAV ITEMS — semua role bisa lihat semua menu
+// NAV ITEMS — semua role bisa lihat semua menu
 // =====================================================
 function getNavItems(role: UserRole | undefined): NavItem[] {
   const base: NavItem[] = [
@@ -46,8 +47,8 @@ function getNavItems(role: UserRole | undefined): NavItem[] {
     { key: "stats", label: "Statistik", icon: BarChart3 },
   );
 
-  // ⭐ Drives & Collaborators tampil untuk SEMUA role
-  // Member = read-only (action button disembunyikan di view-nya)
+  // Drives & Collaborators tampil untuk SEMUA role
+  // (member = read-only, action button disembunyikan di view)
   base.push(
     { key: "drives", label: "Google Drive", icon: HardDrive },
     { key: "collaborators", label: "Collaborators", icon: Users },
@@ -83,6 +84,13 @@ export function Sidebar() {
     showConfirm("Logout?", "Kamu akan keluar dari akun ini.", logout);
   };
 
+  const handleOpenProfile = () => {
+    setView("profile");
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  };
+
   const convertingCount = conversionJobs.filter(
     (j) => j.status === "processing",
   ).length;
@@ -100,12 +108,10 @@ export function Sidebar() {
       case "monthly":
         return countMonthlyFolders(files) || null;
       case "drives":
-        // ⭐ Badge untuk semua role
         return drives.length > 0 ? drives.length : null;
       case "convert":
         return convertingCount > 0 ? convertingCount : null;
       case "collaborators":
-        // ⭐ Badge untuk semua role
         return collaborators.length > 0 ? collaborators.length : null;
       case "stats":
         return activeCategories > 0 ? activeCategories : null;
@@ -113,6 +119,8 @@ export function Sidebar() {
         return null;
     }
   }
+
+  const isProfileActive = currentView === "profile";
 
   return (
     <>
@@ -191,7 +199,7 @@ export function Sidebar() {
           </nav>
         </div>
 
-        {/* STORAGE WIDGET — tampil untuk semua role */}
+        {/* STORAGE WIDGET */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -245,11 +253,20 @@ export function Sidebar() {
           </motion.div>
         )}
 
-        {/* USER CHIP */}
-        <div className="flex items-center gap-2.5 rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-2.5">
+        {/* PROFILE BUTTON */}
+        <button
+          onClick={handleOpenProfile}
+          className={cn(
+            "group flex items-center gap-2.5 rounded-2xl border p-2.5 text-left transition-all",
+            isProfileActive
+              ? "border-[var(--y-primary)] bg-[rgba(239,68,68,0.08)]"
+              : "border-[var(--y-border)] bg-[var(--y-bg-elev)] hover:border-[var(--y-primary)] hover:bg-[var(--y-bg-hover)]",
+          )}
+          title="Buka Profil Saya"
+        >
           <div
             className={cn(
-              "grid h-8 w-8 shrink-0 place-items-center rounded-full text-[13px] font-bold text-white",
+              "grid h-9 w-9 shrink-0 place-items-center rounded-full text-[13px] font-bold text-white",
               user?.role === "owner"
                 ? "y-gradient-brand"
                 : user?.role === "super_admin"
@@ -279,14 +296,26 @@ export function Sidebar() {
               {user?.email || "—"}
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            title="Logout"
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[var(--y-text-mute)] transition-colors hover:bg-[rgba(239,68,68,0.1)] hover:text-[var(--y-danger)]"
-          >
-            <LogOut size={15} />
-          </button>
-        </div>
+          <UserIcon
+            size={15}
+            className={cn(
+              "shrink-0 transition-colors",
+              isProfileActive
+                ? "text-[var(--y-primary)]"
+                : "text-[var(--y-text-mute)] group-hover:text-[var(--y-text)]",
+            )}
+          />
+        </button>
+
+        {/* LOGOUT */}
+        <button
+          onClick={handleLogout}
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] text-[12px] font-semibold text-[var(--y-text-dim)] transition-colors hover:border-[rgba(239,68,68,0.3)] hover:bg-[rgba(239,68,68,0.08)] hover:text-[var(--y-danger)]"
+          title="Logout"
+        >
+          <LogOut size={14} />
+          Logout
+        </button>
 
         {/* MOBILE CLOSE */}
         <button
