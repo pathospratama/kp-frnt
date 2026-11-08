@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ClipboardCheck,
   FileText,
@@ -12,22 +12,53 @@ import {
   Loader2,
   Inbox,
   AlertCircle,
+  ChevronDown,
+  Pencil,
+  FileSearch,
+  X,
+  PencilLine,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { useYudit } from "@/lib/yudit/store";
 import { myAssignments } from "@/lib/api/assignments";
-import type { DocumentAssignment } from "@/lib/yudit/types";
-import { formatBytes, formatDate } from "@/lib/yudit/utils";
+import type { DocumentAssignment, EditorMode } from "@/lib/yudit/types";
+import { formatBytes, formatDate, extOf } from "@/lib/yudit/utils";
 import { FileIcon } from "../ui/file-icon";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+// Import editor modes
+import { DocEditor } from "../editor/doc-editor";
+import { GoogleDocViewer } from "../editor/google-doc-viewer";
+import { DocPreviewViewer } from "../editor/doc-preview-viewer";
+
+function isDocxFile(name: string): boolean {
+  return extOf(name) === "docx";
+}
 
 export function MyTasksView() {
   const user = useYudit((s) => s.user);
   const openEditor = useYudit((s) => s.openEditor);
+  const fetchFiles = useYudit((s) => s.fetchFiles);
 
   const [assignments, setAssignments] = useState<DocumentAssignment[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // State untuk modal editor
+  const [editingFile, setEditingFile] = useState<{
+    id: string;
+    name: string;
+    googleDocId?: string | null;
+    mode: EditorMode;
+  } | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -48,6 +79,24 @@ export function MyTasksView() {
   const isExpired = (a: DocumentAssignment) => {
     if (!a.expires_at) return false;
     return new Date(a.expires_at) < new Date();
+  };
+
+  const handleOpenEditor = (
+    file: NonNullable<DocumentAssignment["file"]>,
+    mode: EditorMode,
+  ) => {
+    setEditingFile({
+      id: file.id,
+      name: file.name,
+      googleDocId: file.google_doc_id,
+      mode,
+    });
+  };
+
+  const handleCloseEditor = () => {
+    setEditingFile(null);
+    fetchFiles(); // refresh list file utama
+    load(); // refresh list tugas ini (jika ada perubahan)
   };
 
   // =====================================================
@@ -106,6 +155,9 @@ export function MyTasksView() {
         <div className="grid gap-3">
           {assignments.map((a, i) => {
             const expired = isExpired(a);
+            const docx = a.file ? isDocxFile(a.file.name) : false;
+            const canEdit = a.can_edit && !expired && docx;
+
             return (
               <motion.div
                 key={a.id}
@@ -162,8 +214,8 @@ export function MyTasksView() {
                   </div>
                 </div>
 
-                <div className="mt-3 flex items-center justify-between border-t border-[var(--y-border-soft)] pt-3">
-                  <div className="flex items-center gap-1.5">
+                <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between border-t border-[var(--y-border-soft)] pt-3 gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {a.can_edit && (
                       <PermissionChip label="Edit" color="#10b981" />
                     )}
@@ -174,30 +226,142 @@ export function MyTasksView() {
                       <PermissionChip label="Share" color="#22d3ee" />
                     )}
                   </div>
-                  {a.can_edit && !expired && (
-                    <button
-                      onClick={() => {
-                        if (!a.file) return;
-                        openEditor(a.file.id, "local");
-                      }}
-                      className="y-gradient-brand inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[12px] font-semibold text-white"
-                    >
-                      <Edit3 size={12} />
-                      Edit Dokumen
-                    </button>
-                  )}
-                  {expired && (
-                    <span className="inline-flex items-center gap-1 text-[11px] text-[var(--y-danger)]">
-                      <AlertCircle size={12} />
-                      Akses kedaluwarsa
-                    </span>
-                  )}
+
+                  {/* ⭐ TOMBOL AKSI (Dropdown untuk Edit, Preview, Google Docs) */}
+                  <div className="flex items-center gap-2">
+                    {canEdit && a.file && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="y-gradient-brand inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[12px] font-semibold text-white transition-all hover:opacity-90">
+                            <Pencil size={12} />
+                            Edit Dokumen
+                            <ChevronDown size={12} />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-64">
+                          <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-[var(--y-text-mute)]">
+                            Pilih Mode Editor
+                          </DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+
+                          <DropdownMenuItem
+                            onClick={() =>
+                              handleOpenEditor(a.file!, "local")
+                            }
+                            className="gap-2.5 py-2"
+                          >
+                            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[rgba(239,68,68,0.15)]">
+                              <PencilLine
+                                size={15}
+                                className="text-[var(--y-primary)]"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-[var(--y-text)]">
+                                Edit Cepat
+                              </div>
+                              <div className="text-[10px] text-[var(--y-text-mute)]">
+                                Format dasar, autosave 1.5s
+                              </div>
+                            </div>
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onClick={() =>
+                              handleOpenEditor(a.file!, "google_docs")
+                            }
+                            className="gap-2.5 py-2"
+                          >
+                            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[rgba(66,133,244,0.15)]">
+                              <FileText
+                                size={15}
+                                className="text-[#4285f4]"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 text-sm font-semibold text-[var(--y-text)]">
+                                Google Docs
+                                <span className="rounded-full bg-[rgba(16,185,129,0.15)] px-1.5 py-0.5 text-[8px] font-bold text-[#10b981]">
+                                  NATIVE
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-[var(--y-text-mute)]">
+                                Full fitur, fidelity 100%
+                              </div>
+                            </div>
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onClick={() =>
+                              handleOpenEditor(a.file!, "preview")
+                            }
+                            className="gap-2.5 py-2"
+                          >
+                            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[rgba(249,115,22,0.15)]">
+                              <FileSearch
+                                size={15}
+                                className="text-[var(--y-accent)]"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-[var(--y-text)]">
+                                Preview Asli
+                              </div>
+                              <div className="text-[10px] text-[var(--y-text-mute)]">
+                                Lihat persis seperti Word
+                              </div>
+                            </div>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+
+                    {expired && (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-[var(--y-danger)]">
+                        <AlertCircle size={12} />
+                        Akses kedaluwarsa
+                      </span>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             );
           })}
         </div>
       )}
+
+      {/* ⭐ EDITOR / PREVIEW MODALS */}
+      <AnimatePresence>
+        {editingFile && editingFile.mode === "local" && (
+          <DocEditor
+            key="editor-local"
+            fileId={editingFile.id}
+            fileName={editingFile.name}
+            onClose={handleCloseEditor}
+          />
+        )}
+        {editingFile && editingFile.mode === "google_docs" && (
+          <GoogleDocViewer
+            key="editor-gdocs"
+            fileId={editingFile.id}
+            fileName={editingFile.name}
+            existingDocId={editingFile.googleDocId}
+            onClose={handleCloseEditor}
+            onSyncBack={() => {
+              toast.success("Berhasil sync ke .docx");
+              handleCloseEditor();
+            }}
+          />
+        )}
+        {editingFile && editingFile.mode === "preview" && (
+          <DocPreviewViewer
+            key="editor-preview"
+            fileId={editingFile.id}
+            fileName={editingFile.name}
+            onClose={handleCloseEditor}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
