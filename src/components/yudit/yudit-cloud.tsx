@@ -5,7 +5,7 @@ import { useEffect, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import { AlertTriangle, RefreshCw, X } from "lucide-react";
-
+import { ProfileView } from "./views/profile-view";
 import { ForcedPasswordChangeView } from "./views/forced-password-change-view";
 import {
   registerToast,
@@ -192,6 +192,8 @@ function ViewRouter({ view }: { view: string }) {
       return <DrivesView />;
     case "collaborators":
       return <CollaboratorsView />;
+    case "profile":
+      return <ProfileView />;
     default:
       return <FilesView />;
   }
