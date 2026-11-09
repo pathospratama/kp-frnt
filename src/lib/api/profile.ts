@@ -93,19 +93,37 @@ export interface NotificationPrefs {
   updated_at: string;
 }
 
+// =====================================================
+// ⭐ SESSION — detail lengkap (brand, model, OS, browser, lokasi)
+// =====================================================
 export interface Session {
   id: string;
   device_type: string | null;
+  device_brand: string | null;
+  device_model: string | null;
+  device_family: string | null;
   device_name: string | null;
+  device_display: string | null;
   browser: string | null;
+  browser_version: string | null;
   os: string | null;
+  os_version: string | null;
   ip_address: string | null;
+  country: string | null;
+  country_code: string | null;
+  region: string | null;
+  city: string | null;
+  isp: string | null;
   location: string | null;
+  last_page: string | null;
   is_current: boolean;
   last_active_at: string;
   created_at: string;
 }
 
+// =====================================================
+// ⭐ ACTIVITY — dengan page tracking
+// =====================================================
 export interface ActivityItem {
   id: string;
   action: string;
@@ -114,6 +132,21 @@ export interface ActivityItem {
   resource_id: string | null;
   ip_address: string | null;
   metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface PageView {
+  id: string;
+  user_id: string;
+  page_path: string;
+  page_title: string | null;
+  referrer: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  device_display: string | null;
+  country: string | null;
+  city: string | null;
+  duration_ms: number | null;
   created_at: string;
 }
 
@@ -196,6 +229,29 @@ export async function listActivity(
 ): Promise<ActivityItem[]> {
   const { data } = await api.get<ActivityItem[]>("/profile/activity", {
     params: { limit, action },
+  });
+  return data;
+}
+
+// =====================================================
+// ⭐ PAGE TRACKING
+// =====================================================
+export async function trackPageView(payload: {
+  page_path: string;
+  page_title?: string;
+  referrer?: string;
+  duration_ms?: number;
+}): Promise<void> {
+  try {
+    await api.post("/profile/track-page", payload);
+  } catch {
+    // Silent — tracking tidak boleh ganggu UX
+  }
+}
+
+export async function listPageViews(limit = 100): Promise<PageView[]> {
+  const { data } = await api.get<PageView[]>("/profile/page-views", {
+    params: { limit },
   });
   return data;
 }
