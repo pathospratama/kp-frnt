@@ -31,6 +31,48 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * ⭐ INLINE SCRIPT ANTI-FOUC
+ *
+ * Script ini dieksekusi SEBELUM React hydration & SEBELUM browser
+ * melakukan paint pertama kali. Tujuannya:
+ *
+ * 1. Baca theme dari localStorage (yang sudah diset dari login sebelumnya)
+ * 2. Kalau "system" → cek prefers-color-scheme OS
+ * 3. Set `class="dark"` atau `class="light"` di <html>
+ * 4. Set `color-scheme` CSS property agar native form elements ikut
+ *
+ * Hasil: TIDAK ADA flash putih saat user dengan preferensi dark membuka app.
+ *
+ * Kalau localStorage kosong (user baru) → default ke "system".
+ */
+const ANTI_FOUC_SCRIPT = `
+(function() {
+  try {
+    var theme = localStorage.getItem('yudit_theme') || 'system';
+    var resolved;
+    if (theme === 'dark') {
+      resolved = 'dark';
+    } else if (theme === 'light') {
+      resolved = 'light';
+    } else {
+      // system
+      resolved = window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light';
+    }
+    var root = document.documentElement;
+    root.classList.remove('light', 'dark');
+    root.classList.add(resolved);
+    root.style.colorScheme = resolved;
+  } catch (e) {
+    // Fail-safe: kalau apapun error, pakai light
+    document.documentElement.classList.add('light');
+    document.documentElement.style.colorScheme = 'light';
+  }
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -38,6 +80,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id" suppressHydrationWarning>
+      <head>
+        {/* ⭐ Anti-FOUC script — WAJIB paling awal di <head> */}
+        <script
+          dangerouslySetInnerHTML={{ __html: ANTI_FOUC_SCRIPT }}
+          suppressHydrationWarning
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
