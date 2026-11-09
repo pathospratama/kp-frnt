@@ -5,14 +5,11 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User,
-  Briefcase,
   Shield,
   Monitor,
   Bell,
   Palette,
-  Users,
   History,
-  HardDrive,
   Camera,
   Loader2,
   CheckCircle2,
@@ -34,11 +31,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { useYudit, canManageWorkspace } from "@/lib/yudit/store";
+import { useYudit } from "@/lib/yudit/store";
 import {
   getProfile,
   updatePersonalInfo,
-  updateProfessionalInfo,
   updatePreferences,
   getNotificationPrefs,
   updateNotificationPrefs,
@@ -47,33 +43,28 @@ import {
   revokeAllOtherSessions,
   listActivity,
   listPageViews,
-  getStorageInfo,
   changePasswordFromProfile,
   type UserProfile,
   type NotificationPrefs,
   type Session,
   type ActivityItem,
   type PageView,
-  type StorageInfo,
 } from "@/lib/api/profile";
-import { formatBytes, formatDate, formatDateTime } from "@/lib/yudit/utils";
+import { formatDate, formatDateTime } from "@/lib/yudit/utils";
 import { ApiError } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import { applyLanguage, applyTheme } from "@/hooks/use-apply-preferences";
 
 // =====================================================
-// SECTION TABS
+// SECTION TABS — DIPANGKAS
 // =====================================================
 type SectionKey =
   | "personal"
-  | "professional"
   | "security"
   | "sessions"
   | "notifications"
   | "preferences"
-  | "collaboration"
-  | "activity"
-  | "storage";
+  | "activity";
 
 const SECTIONS: {
   key: SectionKey;
@@ -86,12 +77,6 @@ const SECTIONS: {
     label: "Personal Information",
     icon: User,
     desc: "Identitas dan informasi kepegawaian",
-  },
-  {
-    key: "professional",
-    label: "Professional Information",
-    icon: Briefcase,
-    desc: "Jabatan, unit kerja dan struktur organisasi",
   },
   {
     key: "security",
@@ -115,25 +100,13 @@ const SECTIONS: {
     key: "preferences",
     label: "Appearance & Preferences",
     icon: Palette,
-    desc: "Tema, bahasa dan tampilan",
-  },
-  {
-    key: "collaboration",
-    label: "Collaboration",
-    icon: Users,
-    desc: "Kolaborasi dan akses dokumen",
+    desc: "Tema dan tampilan",
   },
   {
     key: "activity",
     label: "Activity History",
     icon: History,
     desc: "Riwayat aktivitas akun",
-  },
-  {
-    key: "storage",
-    label: "Storage Information",
-    icon: HardDrive,
-    desc: "Informasi penyimpanan pengguna",
   },
 ];
 
@@ -322,9 +295,6 @@ export function ProfileView() {
               {activeSection === "personal" && (
                 <PersonalSection profile={profile} onChange={setProfile} />
               )}
-              {activeSection === "professional" && (
-                <ProfessionalSection profile={profile} onChange={setProfile} />
-              )}
               {activeSection === "security" && (
                 <SecuritySection profile={profile} />
               )}
@@ -333,11 +303,7 @@ export function ProfileView() {
               {activeSection === "preferences" && (
                 <PreferencesSection profile={profile} onChange={setProfile} />
               )}
-              {activeSection === "collaboration" && (
-                <CollaborationSection profile={profile} />
-              )}
               {activeSection === "activity" && <ActivitySection />}
-              {activeSection === "storage" && <StorageSection />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -492,132 +458,6 @@ function PersonalSection({
 }
 
 // =====================================================
-// PROFESSIONAL SECTION
-// =====================================================
-function ProfessionalSection({
-  profile,
-  onChange,
-}: {
-  profile: UserProfile;
-  onChange: (p: UserProfile) => void;
-}) {
-  const [form, setForm] = useState({
-    job_title: profile.job_title || "",
-    department: profile.department || "",
-    unit_kerja: profile.unit_kerja || "",
-    employee_id: profile.employee_id || "",
-    office_location: profile.office_location || "",
-    joined_organization_at: profile.joined_organization_at || "",
-  });
-  const [saving, setSaving] = useState(false);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const updated = await updateProfessionalInfo({
-        job_title: form.job_title || null,
-        department: form.department || null,
-        unit_kerja: form.unit_kerja || null,
-        employee_id: form.employee_id || null,
-        office_location: form.office_location || null,
-        joined_organization_at: form.joined_organization_at || null,
-      });
-      onChange(updated);
-      toast.success("Informasi profesional diperbarui");
-    } catch (e) {
-      const msg = e instanceof ApiError ? e.detail : "Gagal menyimpan";
-      toast.error(msg);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="space-y-5">
-      <SectionHeader
-        title="Professional Information"
-        desc="Jabatan, unit kerja dan struktur organisasi"
-      />
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <FormField label="Jabatan">
-          <input
-            type="text"
-            value={form.job_title}
-            onChange={(e) => setForm({ ...form, job_title: e.target.value })}
-            placeholder="Contoh: Administrator"
-            className="y-focus h-10 w-full rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm"
-          />
-        </FormField>
-        <FormField label="Departemen">
-          <input
-            type="text"
-            value={form.department}
-            onChange={(e) => setForm({ ...form, department: e.target.value })}
-            placeholder="Contoh: Teknologi Informasi"
-            className="y-focus h-10 w-full rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm"
-          />
-        </FormField>
-        <FormField label="Unit Kerja">
-          <input
-            type="text"
-            value={form.unit_kerja}
-            onChange={(e) => setForm({ ...form, unit_kerja: e.target.value })}
-            placeholder="Contoh: Sekretariat DPRD"
-            className="y-focus h-10 w-full rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm"
-          />
-        </FormField>
-        <FormField label="NIP / Employee ID">
-          <input
-            type="text"
-            value={form.employee_id}
-            onChange={(e) => setForm({ ...form, employee_id: e.target.value })}
-            placeholder="Nomor induk pegawai"
-            className="y-focus h-10 w-full rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm"
-          />
-        </FormField>
-        <FormField label="Lokasi Kantor">
-          <input
-            type="text"
-            value={form.office_location}
-            onChange={(e) =>
-              setForm({ ...form, office_location: e.target.value })
-            }
-            placeholder="Contoh: Gedung A Lt. 3"
-            className="y-focus h-10 w-full rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm"
-          />
-        </FormField>
-        <FormField label="Tanggal Mulai Bergabung di Organisasi">
-          <input
-            type="date"
-            value={form.joined_organization_at}
-            onChange={(e) =>
-              setForm({ ...form, joined_organization_at: e.target.value })
-            }
-            className="y-focus h-10 w-full rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm"
-          />
-        </FormField>
-      </div>
-
-      <div className="flex justify-end border-t border-[var(--y-border-soft)] pt-4">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="y-gradient-brand inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white disabled:opacity-60"
-        >
-          {saving ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <Save size={14} />
-          )}
-          Simpan Perubahan
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// =====================================================
 // SECURITY SECTION
 // =====================================================
 function SecuritySection({ profile }: { profile: UserProfile }) {
@@ -745,7 +585,7 @@ function SecuritySection({ profile }: { profile: UserProfile }) {
 }
 
 // =====================================================
-// SESSIONS SECTION — dengan info akurasi lokasi
+// SESSIONS SECTION
 // =====================================================
 function SessionsSection() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -798,7 +638,6 @@ function SessionsSection() {
         desc="Perangkat dan sesi login aktif dengan detail lengkap"
       />
 
-      {/* ⭐ Info akurasi lokasi */}
       <div className="rounded-xl border border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.05)] p-3">
         <button
           onClick={() => setShowInfo(!showInfo)}
@@ -880,7 +719,6 @@ function SessionsSection() {
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    {/* Header */}
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="truncate text-sm font-bold text-[var(--y-text)]">
                         {s.device_display || s.device_name || "Unknown Device"}
@@ -897,7 +735,6 @@ function SessionsSection() {
                       )}
                     </div>
 
-                    {/* Detail grid */}
                     <div className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-[11px] sm:grid-cols-2">
                       {s.device_brand && (
                         <DetailRow label="Brand" value={s.device_brand} />
@@ -948,7 +785,6 @@ function SessionsSection() {
                       )}
                     </div>
 
-                    {/* Footer */}
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] text-[var(--y-text-mute)]">
                       <span className="inline-flex items-center gap-1">
                         <Clock size={10} />
@@ -1114,7 +950,10 @@ function NotificationsSection() {
 }
 
 // =====================================================
-// PREFERENCES SECTION — dengan live apply theme & language
+// PREFERENCES SECTION — REVISED
+// - Bahasa dihapus (hanya Indonesia)
+// - Tema tersetup dengan picker yang jelas
+// - Timezone pakai dropdown
 // =====================================================
 function PreferencesSection({
   profile,
@@ -1125,7 +964,6 @@ function PreferencesSection({
 }) {
   const [form, setForm] = useState({
     theme: profile.theme,
-    language: profile.language,
     timezone: profile.timezone,
     email_notifications: profile.email_notifications,
     push_notifications: profile.push_notifications,
@@ -1133,12 +971,18 @@ function PreferencesSection({
   });
   const [saving, setSaving] = useState(false);
 
+  // ⭐ Apply theme instan saat user pilih (live preview)
+  const handleThemeChange = (theme: "light" | "dark" | "system") => {
+    setForm({ ...form, theme });
+    applyTheme(theme); // instant preview
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
       const updated = await updatePreferences({
         theme: form.theme,
-        language: form.language,
+        language: "id", // ⭐ hardcode Indonesian
         timezone: form.timezone,
         email_notifications: form.email_notifications,
         push_notifications: form.push_notifications,
@@ -1146,9 +990,8 @@ function PreferencesSection({
       });
       onChange(updated);
 
-      // ⭐ Apply theme & language langsung
       applyTheme(updated.theme);
-      applyLanguage(updated.language);
+      applyLanguage("id");
 
       toast.success("Preferensi diperbarui");
     } catch (e) {
@@ -1159,47 +1002,125 @@ function PreferencesSection({
     }
   };
 
+  // ⭐ Timezone options — fokus Indonesia dulu
+  const timezones = [
+    { value: "Asia/Jakarta", label: "WIB — Jakarta (UTC+7)" },
+    { value: "Asia/Pontianak", label: "WIB — Pontianak (UTC+7)" },
+    { value: "Asia/Makassar", label: "WITA — Makassar (UTC+8)" },
+    { value: "Asia/Jayapura", label: "WIT — Jayapura (UTC+9)" },
+  ];
+
+  // ⭐ Theme options dengan preview visual
+  const themeOptions: {
+    value: "light" | "dark" | "system";
+    label: string;
+    desc: string;
+    icon: string;
+    bg: string;
+  }[] = [
+    {
+      value: "light",
+      label: "Terang",
+      desc: "Selalu pakai tema terang",
+      icon: "☀️",
+      bg: "linear-gradient(135deg, #ffffff, #f1f5f9)",
+    },
+    {
+      value: "dark",
+      label: "Gelap",
+      desc: "Selalu pakai tema gelap",
+      icon: "🌙",
+      bg: "linear-gradient(135deg, #0f172a, #1e293b)",
+    },
+    {
+      value: "system",
+      label: "Ikuti Sistem",
+      desc: "Otomatis sesuai OS Anda",
+      icon: "🖥️",
+      bg: "linear-gradient(135deg, #e2e8f0 50%, #1e293b 50%)",
+    },
+  ];
+
   return (
     <div className="space-y-5">
       <SectionHeader
         title="Appearance & Preferences"
-        desc="Tema, bahasa dan tampilan aplikasi"
+        desc="Tema, zona waktu dan notifikasi aplikasi"
       />
 
+      {/* ============================================
+          THEME PICKER
+          ============================================ */}
+      <div>
+        <label className="mb-2 block text-[12px] font-semibold text-[var(--y-text-dim)]">
+          Tema Aplikasi
+        </label>
+        <div className="grid grid-cols-3 gap-2.5">
+          {themeOptions.map((opt) => {
+            const isActive = form.theme === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => handleThemeChange(opt.value)}
+                className={cn(
+                  "group relative flex flex-col items-center gap-2 rounded-xl border-2 p-3 transition-all",
+                  isActive
+                    ? "border-[var(--y-primary)] shadow-[0_0_0_3px_rgba(239,68,68,0.15)]"
+                    : "border-[var(--y-border)] hover:border-[var(--y-primary)]",
+                )}
+              >
+                {/* Theme preview box */}
+                <div
+                  className="h-14 w-full rounded-lg border border-[var(--y-border)]"
+                  style={{ background: opt.bg }}
+                >
+                  <div className="flex h-full items-center justify-center text-2xl">
+                    {opt.icon}
+                  </div>
+                </div>
+
+                {/* Check indicator */}
+                {isActive && (
+                  <div className="absolute -top-1.5 -right-1.5 grid h-6 w-6 place-items-center rounded-full bg-[var(--y-primary)] shadow-lg">
+                    <CheckCircle2 size={14} className="text-white" />
+                  </div>
+                )}
+
+                <div className="text-center">
+                  <div className="text-[12px] font-bold text-[var(--y-text)]">
+                    {opt.label}
+                  </div>
+                  <div className="text-[10px] text-[var(--y-text-mute)]">
+                    {opt.desc}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-[11px] italic text-[var(--y-text-mute)]">
+          💡 Tema diterapkan langsung saat Anda pilih. Jangan lupa klik Simpan
+          untuk menyimpan permanen.
+        </p>
+      </div>
+
+      {/* ============================================
+          TIMEZONE & DIGEST
+          ============================================ */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <FormField label="Tema">
-          <select
-            value={form.theme}
-            onChange={(e) =>
-              setForm({ ...form, theme: e.target.value as any })
-            }
-            className="y-focus h-10 w-full rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm"
-          >
-            <option value="system">Ikuti Sistem</option>
-            <option value="light">Terang</option>
-            <option value="dark">Gelap</option>
-          </select>
-        </FormField>
-        <FormField label="Bahasa">
-          <select
-            value={form.language}
-            onChange={(e) =>
-              setForm({ ...form, language: e.target.value as any })
-            }
-            className="y-focus h-10 w-full rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm"
-          >
-            <option value="id">Bahasa Indonesia</option>
-            <option value="en">English</option>
-          </select>
-        </FormField>
         <FormField label="Zona Waktu">
-          <input
-            type="text"
+          <select
             value={form.timezone}
             onChange={(e) => setForm({ ...form, timezone: e.target.value })}
-            placeholder="Asia/Jakarta"
             className="y-focus h-10 w-full rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm"
-          />
+          >
+            {timezones.map((tz) => (
+              <option key={tz.value} value={tz.value}>
+                {tz.label}
+              </option>
+            ))}
+          </select>
         </FormField>
         <FormField label="Frekuensi Digest Email">
           <select
@@ -1217,6 +1138,9 @@ function PreferencesSection({
         </FormField>
       </div>
 
+      {/* ============================================
+          TOGGLES
+          ============================================ */}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] p-3">
           <div>
@@ -1275,71 +1199,7 @@ function PreferencesSection({
 }
 
 // =====================================================
-// COLLABORATION SECTION
-// =====================================================
-function CollaborationSection({ profile }: { profile: UserProfile }) {
-  const collaborators = useYudit((s) => s.collaborators);
-  const isManager = canManageWorkspace(profile as any);
-
-  return (
-    <div className="space-y-5">
-      <SectionHeader
-        title="Collaboration"
-        desc="Kolaborasi dan akses dokumen Anda"
-      />
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard
-          label="Role Anda"
-          value={
-            profile.role === "owner"
-              ? "Owner"
-              : profile.role === "super_admin"
-                ? "Super Admin"
-                : "Member"
-          }
-        />
-        <StatCard label="Total Anggota" value={String(collaborators.length)} />
-        <StatCard
-          label="Akses Workspace"
-          value={isManager ? "Kelola" : "Terbatas"}
-        />
-      </div>
-
-      <div className="rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] p-4">
-        <h3 className="mb-2 text-sm font-bold text-[var(--y-text)]">
-          Tentang akses Anda
-        </h3>
-        <ul className="space-y-1.5 text-[12px] text-[var(--y-text-dim)]">
-          {profile.role === "owner" && (
-            <>
-              <li>✅ Dapat mengelola seluruh workspace</li>
-              <li>✅ Dapat invite / remove collaborator</li>
-              <li>✅ Dapat connect / disconnect Google Drive</li>
-            </>
-          )}
-          {profile.role === "super_admin" && (
-            <>
-              <li>✅ Dapat mengelola collaborator dan drive</li>
-              <li>✅ Dapat assign dokumen ke member</li>
-              <li>⚠️ Hanya owner yang bisa promote ke super_admin</li>
-            </>
-          )}
-          {profile.role === "member" && (
-            <>
-              <li>✅ Dapat melihat semua dokumen workspace</li>
-              <li>✅ Dapat preview & download</li>
-              <li>⚠️ Hanya dapat edit/hapus dokumen yang ditugaskan</li>
-            </>
-          )}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-// =====================================================
-// ACTIVITY SECTION — Enhanced (Activity + Page Views)
+// ACTIVITY SECTION (tetap sama)
 // =====================================================
 function ActivitySection() {
   const [items, setItems] = useState<ActivityItem[]>([]);
@@ -1421,7 +1281,6 @@ function ActivitySection() {
         desc="Riwayat aktivitas akun & halaman yang dikunjungi"
       />
 
-      {/* Tab switch */}
       <div className="inline-flex gap-1 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] p-1">
         <button
           onClick={() => setTab("activity")}
@@ -1570,88 +1429,6 @@ function ActivitySection() {
 }
 
 // =====================================================
-// STORAGE SECTION
-// =====================================================
-function StorageSection() {
-  const [info, setInfo] = useState<StorageInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const data = await getStorageInfo();
-      setInfo(data);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 401) return;
-      toast.error("Gagal memuat info storage");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  if (loading || !info) {
-    return (
-      <div className="grid place-items-center py-10">
-        <Loader2 size={22} className="animate-spin text-[var(--y-primary)]" />
-      </div>
-    );
-  }
-
-  const pct =
-    info.pool_total > 0
-      ? Math.round((info.pool_used / info.pool_total) * 100)
-      : 0;
-
-  return (
-    <div className="space-y-5">
-      <SectionHeader
-        title="Storage Information"
-        desc="Informasi penyimpanan workspace Anda"
-      />
-
-      <div className="rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-semibold text-[var(--y-text-dim)]">
-            Total Storage Pool
-          </span>
-          <span className="text-sm font-bold text-[var(--y-primary)]">
-            {pct}%
-          </span>
-        </div>
-        <div className="h-2.5 w-full overflow-hidden rounded-full bg-[var(--y-bg-elev-2)]">
-          <div
-            className="h-full rounded-full transition-all"
-            style={{
-              width: `${pct}%`,
-              background:
-                "linear-gradient(90deg, var(--y-primary), var(--y-accent))",
-            }}
-          />
-        </div>
-        <div className="mt-2 flex justify-between text-[11px] text-[var(--y-text-mute)]">
-          <span>{formatBytes(info.pool_used)} terpakai</span>
-          <span>{formatBytes(info.pool_total)} total</span>
-        </div>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total Files" value={String(info.files_count)} />
-        <StatCard label="Total Size" value={formatBytes(info.files_size)} />
-        <StatCard
-          label="Upload oleh Anda"
-          value={formatBytes(info.user_own_usage)}
-        />
-        <StatCard label="Akun Drive" value={String(info.accounts_count)} />
-      </div>
-    </div>
-  );
-}
-
-// =====================================================
 // SHARED COMPONENTS
 // =====================================================
 function SectionHeader({ title, desc }: { title: string; desc: string }) {
@@ -1704,19 +1481,6 @@ function ReadOnlyField({
         )}
       >
         {value || "-"}
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] p-3">
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--y-text-mute)]">
-        {label}
-      </div>
-      <div className="mt-1 text-lg font-bold tabular-nums text-[var(--y-text)]">
-        {value}
       </div>
     </div>
   );
