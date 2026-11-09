@@ -53,10 +53,14 @@ import {
 import { formatDate, formatDateTime } from "@/lib/yudit/utils";
 import { ApiError } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
-import { applyLanguage, applyTheme } from "@/hooks/use-apply-preferences";
+import {
+  applyLanguage,
+  applyTheme,
+  getCurrentTheme,
+} from "@/hooks/use-apply-preferences";
 
 // =====================================================
-// SECTION TABS — DIPANGKAS
+// SECTION TABS
 // =====================================================
 type SectionKey =
   | "personal"
@@ -950,10 +954,10 @@ function NotificationsSection() {
 }
 
 // =====================================================
-// PREFERENCES SECTION — REVISED
-// - Bahasa dihapus (hanya Indonesia)
-// - Tema tersetup dengan picker yang jelas
-// - Timezone pakai dropdown
+// PREFERENCES SECTION — FINAL FIX
+// - Theme langsung apply + auto-save ke DB (tanpa klik simpan)
+// - Bahasa hardcode Indonesia
+// - Timezone dropdown
 // =====================================================
 function PreferencesSection({
   profile,
@@ -962,19 +966,39 @@ function PreferencesSection({
   profile: UserProfile;
   onChange: (p: UserProfile) => void;
 }) {
+  // ⭐ Init theme dari localStorage (bukan profile.theme mentah)
+  //    karena profile.theme bisa "System" (kapital) atau null dari DB lama
   const [form, setForm] = useState({
-    theme: profile.theme,
-    timezone: profile.timezone,
+    theme: getCurrentTheme() as "light" | "dark" | "system",
+    timezone: profile.timezone || "Asia/Jakarta",
     email_notifications: profile.email_notifications,
     push_notifications: profile.push_notifications,
     digest_frequency: profile.digest_frequency,
   });
   const [saving, setSaving] = useState(false);
 
-  // ⭐ Apply theme instan saat user pilih (live preview)
-  const handleThemeChange = (theme: "light" | "dark" | "system") => {
-    setForm({ ...form, theme });
-    applyTheme(theme); // instant preview
+  // ⭐ Saat user pilih theme: apply INSTAN ke DOM + auto-save ke DB
+  const handleThemeChange = async (theme: "light" | "dark" | "system") => {
+    // 1. Update state
+    setForm((prev) => ({ ...prev, theme }));
+
+    // 2. Apply ke DOM SEKARANG (instant feedback)
+    applyTheme(theme);
+
+    // 3. Auto-save ke DB (background, tidak block UI)
+    try {
+      const updated = await updatePreferences({ theme });
+      onChange(updated);
+      toast.success(
+        `Tema ${theme === "light" ? "terang" : theme === "dark" ? "gelap" : "sistem"} diterapkan`,
+        { duration: 2000 },
+      );
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.detail : "Gagal menyimpan tema";
+      toast.error(msg);
+      // Rollback ke theme sebelumnya
+      applyTheme(form.theme);
+    }
   };
 
   const handleSave = async () => {
@@ -1002,7 +1026,6 @@ function PreferencesSection({
     }
   };
 
-  // ⭐ Timezone options — fokus Indonesia dulu
   const timezones = [
     { value: "Asia/Jakarta", label: "WIB — Jakarta (UTC+7)" },
     { value: "Asia/Pontianak", label: "WIB — Pontianak (UTC+7)" },
@@ -1010,7 +1033,6 @@ function PreferencesSection({
     { value: "Asia/Jayapura", label: "WIT — Jayapura (UTC+9)" },
   ];
 
-  // ⭐ Theme options dengan preview visual
   const themeOptions: {
     value: "light" | "dark" | "system";
     label: string;
@@ -1070,7 +1092,6 @@ function PreferencesSection({
                     : "border-[var(--y-border)] hover:border-[var(--y-primary)]",
                 )}
               >
-                {/* Theme preview box */}
                 <div
                   className="h-14 w-full rounded-lg border border-[var(--y-border)]"
                   style={{ background: opt.bg }}
@@ -1080,7 +1101,6 @@ function PreferencesSection({
                   </div>
                 </div>
 
-                {/* Check indicator */}
                 {isActive && (
                   <div className="absolute -top-1.5 -right-1.5 grid h-6 w-6 place-items-center rounded-full bg-[var(--y-primary)] shadow-lg">
                     <CheckCircle2 size={14} className="text-white" />
@@ -1100,8 +1120,7 @@ function PreferencesSection({
           })}
         </div>
         <p className="mt-2 text-[11px] italic text-[var(--y-text-mute)]">
-          💡 Tema diterapkan langsung saat Anda pilih. Jangan lupa klik Simpan
-          untuk menyimpan permanen.
+          💡 Perubahan tema langsung tersimpan otomatis.
         </p>
       </div>
 
@@ -1199,7 +1218,7 @@ function PreferencesSection({
 }
 
 // =====================================================
-// ACTIVITY SECTION (tetap sama)
+// ACTIVITY SECTION
 // =====================================================
 function ActivitySection() {
   const [items, setItems] = useState<ActivityItem[]>([]);
