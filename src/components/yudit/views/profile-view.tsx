@@ -29,7 +29,7 @@ import {
   Tablet,
   Bot,
   MapPin,
-  Wifi,
+  ChevronDown,
   Compass,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -59,6 +59,7 @@ import {
 import { formatBytes, formatDate, formatDateTime } from "@/lib/yudit/utils";
 import { ApiError } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
+import { applyLanguage, applyTheme } from "@/hooks/use-apply-preferences";
 
 // =====================================================
 // SECTION TABS
@@ -80,17 +81,65 @@ const SECTIONS: {
   icon: typeof User;
   desc: string;
 }[] = [
-  { key: "personal", label: "Personal Information", icon: User, desc: "Identitas dan informasi kepegawaian" },
-  { key: "professional", label: "Professional Information", icon: Briefcase, desc: "Jabatan, unit kerja dan struktur organisasi" },
-  { key: "security", label: "Security & Privacy", icon: Shield, desc: "Password, MFA dan keamanan akun" },
-  { key: "sessions", label: "Devices & Sessions", icon: Monitor, desc: "Perangkat dan sesi login aktif" },
-  { key: "notifications", label: "Notifications", icon: Bell, desc: "Pengaturan pemberitahuan" },
-  { key: "preferences", label: "Appearance & Preferences", icon: Palette, desc: "Tema, bahasa dan tampilan" },
-  { key: "collaboration", label: "Collaboration", icon: Users, desc: "Kolaborasi dan akses dokumen" },
-  { key: "activity", label: "Activity History", icon: History, desc: "Riwayat aktivitas akun" },
-  { key: "storage", label: "Storage Information", icon: HardDrive, desc: "Informasi penyimpanan pengguna" },
+  {
+    key: "personal",
+    label: "Personal Information",
+    icon: User,
+    desc: "Identitas dan informasi kepegawaian",
+  },
+  {
+    key: "professional",
+    label: "Professional Information",
+    icon: Briefcase,
+    desc: "Jabatan, unit kerja dan struktur organisasi",
+  },
+  {
+    key: "security",
+    label: "Security & Privacy",
+    icon: Shield,
+    desc: "Password, MFA dan keamanan akun",
+  },
+  {
+    key: "sessions",
+    label: "Devices & Sessions",
+    icon: Monitor,
+    desc: "Perangkat dan sesi login aktif",
+  },
+  {
+    key: "notifications",
+    label: "Notifications",
+    icon: Bell,
+    desc: "Pengaturan pemberitahuan",
+  },
+  {
+    key: "preferences",
+    label: "Appearance & Preferences",
+    icon: Palette,
+    desc: "Tema, bahasa dan tampilan",
+  },
+  {
+    key: "collaboration",
+    label: "Collaboration",
+    icon: Users,
+    desc: "Kolaborasi dan akses dokumen",
+  },
+  {
+    key: "activity",
+    label: "Activity History",
+    icon: History,
+    desc: "Riwayat aktivitas akun",
+  },
+  {
+    key: "storage",
+    label: "Storage Information",
+    icon: HardDrive,
+    desc: "Informasi penyimpanan pengguna",
+  },
 ];
 
+// =====================================================
+// MAIN COMPONENT
+// =====================================================
 export function ProfileView() {
   const user = useYudit((s) => s.user);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -156,6 +205,7 @@ export function ProfileView() {
                 }}
               >
                 {profile.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={profile.avatar_url}
                     alt={profile.full_name || profile.username}
@@ -695,11 +745,12 @@ function SecuritySection({ profile }: { profile: UserProfile }) {
 }
 
 // =====================================================
-// SESSIONS SECTION — ENHANCED
+// SESSIONS SECTION — dengan info akurasi lokasi
 // =====================================================
 function SessionsSection() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showInfo, setShowInfo] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -746,6 +797,43 @@ function SessionsSection() {
         title="Devices & Sessions"
         desc="Perangkat dan sesi login aktif dengan detail lengkap"
       />
+
+      {/* ⭐ Info akurasi lokasi */}
+      <div className="rounded-xl border border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.05)] p-3">
+        <button
+          onClick={() => setShowInfo(!showInfo)}
+          className="flex w-full items-center justify-between gap-2 text-left"
+        >
+          <div className="flex items-center gap-2 text-[12px] font-semibold text-[var(--y-warn)]">
+            <AlertCircle size={14} />
+            Info: Akurasi Lokasi & Deteksi Perangkat
+          </div>
+          <ChevronDown
+            size={14}
+            className={cn(
+              "text-[var(--y-warn)] transition-transform",
+              showInfo && "rotate-180",
+            )}
+          />
+        </button>
+        {showInfo && (
+          <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-[var(--y-text-dim)]">
+            <p>
+              • Lokasi <b>(estimasi)</b> berdasarkan IP address — akurasi
+              ±50-200 km untuk mobile carrier (XL, Telkomsel, Indosat sering
+              routing via gateway Jakarta).
+            </p>
+            <p>
+              • IP publik bisa berubah saat Anda berpindah WiFi/data seluler.
+              Session dengan perangkat sama akan <b>otomatis digabung</b>.
+            </p>
+            <p>
+              • Untuk keamanan optimal, aktifkan <b>2FA</b> (coming soon) —
+              jangan hanya andalkan geolokasi.
+            </p>
+          </div>
+        )}
+      </div>
 
       <div className="flex justify-end">
         <button
@@ -814,14 +902,9 @@ function SessionsSection() {
                       {s.device_brand && (
                         <DetailRow label="Brand" value={s.device_brand} />
                       )}
-                      {s.device_model &&
-                        s.device_model !== "Unknown" && (
-                          <DetailRow
-                            label="Model"
-                            value={s.device_model}
-                            mono
-                          />
-                        )}
+                      {s.device_model && s.device_model !== "Unknown" && (
+                        <DetailRow label="Model" value={s.device_model} mono />
+                      )}
                       {s.os && (
                         <DetailRow
                           label="OS"
@@ -838,7 +921,20 @@ function SessionsSection() {
                         <DetailRow label="IP" value={s.ip_address} mono />
                       )}
                       {s.location && (
-                        <DetailRow label="Lokasi" value={s.location} />
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[var(--y-text-mute)]">
+                            Lokasi:
+                          </span>
+                          <span
+                            className="min-w-0 text-[11px] text-[var(--y-text-dim)]"
+                            title="Berdasarkan IP — bisa tidak akurat untuk koneksi mobile/VPN"
+                          >
+                            {s.location}{" "}
+                            <span className="text-[10px] italic text-[var(--y-text-mute)]">
+                              (estimasi)
+                            </span>
+                          </span>
+                        </div>
                       )}
                       {s.isp && (
                         <DetailRow label="ISP" value={s.isp} truncate />
@@ -1018,7 +1114,7 @@ function NotificationsSection() {
 }
 
 // =====================================================
-// PREFERENCES SECTION
+// PREFERENCES SECTION — dengan live apply theme & language
 // =====================================================
 function PreferencesSection({
   profile,
@@ -1049,6 +1145,11 @@ function PreferencesSection({
         digest_frequency: form.digest_frequency,
       });
       onChange(updated);
+
+      // ⭐ Apply theme & language langsung
+      applyTheme(updated.theme);
+      applyLanguage(updated.language);
+
       toast.success("Preferensi diperbarui");
     } catch (e) {
       const msg = e instanceof ApiError ? e.detail : "Gagal menyimpan";
@@ -1238,7 +1339,7 @@ function CollaborationSection({ profile }: { profile: UserProfile }) {
 }
 
 // =====================================================
-// ACTIVITY SECTION — ENHANCED (Activity + Page Views)
+// ACTIVITY SECTION — Enhanced (Activity + Page Views)
 // =====================================================
 function ActivitySection() {
   const [items, setItems] = useState<ActivityItem[]>([]);
@@ -1273,19 +1374,45 @@ function ActivitySection() {
   const formatAction = (action: string) => {
     const map: Record<string, string> = {
       login: "Login",
+      register: "Registrasi Akun",
       logout: "Logout",
       update_profile: "Update Profil",
       update_preferences: "Update Preferensi",
       password_changed: "Password Diubah",
       upload_file: "Upload File",
+      download_file: "Download File",
+      preview_file: "Preview File",
       edit_file: "Edit Dokumen",
       delete_file: "Hapus File",
       share_file: "Buat Share Link",
+      revoke_share: "Cabut Share Link",
+      share_download: "Download via Share Link",
+      update_category: "Ubah Kategori",
+      reclassify: "Re-classify File",
+      bulk_delete: "Bulk Hapus File",
+      bulk_category: "Bulk Ubah Kategori",
       revoke_session: "Cabut Sesi",
       revoke_all_sessions: "Logout Semua Sesi",
     };
     return map[action] || action;
   };
+
+  const filterOptions: { key: string; label: string }[] = [
+    { key: "", label: "Semua Aktivitas" },
+    { key: "login", label: "Login" },
+    { key: "logout", label: "Logout" },
+    { key: "update_profile", label: "Update Profil" },
+    { key: "update_preferences", label: "Update Preferensi" },
+    { key: "password_changed", label: "Password Diubah" },
+    { key: "upload_file", label: "Upload File" },
+    { key: "download_file", label: "Download File" },
+    { key: "preview_file", label: "Preview File" },
+    { key: "edit_file", label: "Edit Dokumen" },
+    { key: "delete_file", label: "Hapus File" },
+    { key: "share_file", label: "Share File" },
+    { key: "revoke_share", label: "Cabut Share" },
+    { key: "revoke_session", label: "Cabut Sesi" },
+  ];
 
   return (
     <div className="space-y-5">
@@ -1329,12 +1456,11 @@ function ActivitySection() {
             onChange={(e) => setFilter(e.target.value)}
             className="y-focus h-9 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-[12px]"
           >
-            <option value="">Semua Aktivitas</option>
-            <option value="login">Login</option>
-            <option value="update_profile">Update Profil</option>
-            <option value="password_changed">Password Diubah</option>
-            <option value="share_file">Share File</option>
-            <option value="revoke_session">Cabut Sesi</option>
+            {filterOptions.map((opt) => (
+              <option key={opt.key} value={opt.key}>
+                {opt.label}
+              </option>
+            ))}
           </select>
           <button
             onClick={load}
