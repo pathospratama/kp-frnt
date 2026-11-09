@@ -1573,4 +1573,68 @@ function ReadOnlyField({
       </div>
       <div
         className={cn(
-          "mt-0.5 break-all rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-
+          "mt-0.5 break-all rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 py-2 text-[13px] text-[var(--y-text)]",
+          mono && "font-mono text-[11px]",
+        )}
+      >
+        {value || "-"}
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] p-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--y-text-mute)]">
+        {label}
+      </div>
+      <div className="mt-1 text-lg font-bold tabular-nums text-[var(--y-text)]">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  mono,
+  truncate,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  truncate?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[var(--y-text-mute)]">
+        {label}:
+      </span>
+      <span
+        className={cn(
+          "min-w-0 text-[11px] text-[var(--y-text-dim)]",
+          mono && "font-mono",
+          truncate && "truncate",
+        )}
+        title={value}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function getDeviceIcon(deviceType: string | null): typeof Monitor {
+  switch (deviceType) {
+    case "mobile":
+      return Smartphone;
+    case "tablet":
+      return Tablet;
+    case "bot":
+      return Bot;
+    default:
+      return Monitor;
+  }
+}
