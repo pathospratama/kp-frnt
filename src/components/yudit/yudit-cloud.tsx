@@ -5,6 +5,7 @@ import { useEffect, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import { AlertTriangle, RefreshCw, X } from "lucide-react";
+
 import { ProfileView } from "./views/profile-view";
 import { ForcedPasswordChangeView } from "./views/forced-password-change-view";
 import {
@@ -33,6 +34,7 @@ import { ProgressOverlay } from "./ui/progress-overlay";
 import { DocEditor } from "./editor/doc-editor";
 import { GoogleDocViewer } from "./editor/google-doc-viewer";
 import { DocPreviewViewer } from "./editor/doc-preview-viewer";
+import { usePageTracker } from "@/hooks/use-page-tracker";
 
 // =====================================================
 // ASSIGN MODAL WRAPPER
@@ -216,6 +218,9 @@ export function YuditCloud() {
     (s) => s.fetchConversionOperations,
   );
   const fetchConversionJobs = useYudit((s) => s.fetchConversionJobs);
+
+  // ⭐ Auto-track page views untuk Activity History
+  usePageTracker();
 
   useEffect(() => {
     registerToast((msg, type) => {
