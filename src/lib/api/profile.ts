@@ -161,7 +161,46 @@ export interface StorageInfo {
 }
 
 // =====================================================
-// API CALLS
+// ⭐ ACCOUNT STATS — Statistik Akun User
+// =====================================================
+export interface AccountStats {
+  total_uploads: number;
+  total_uploads_size: number;
+  total_edits: number;
+  total_edited_files: number;
+  total_downloads: number;
+  total_previews: number;
+  total_shares: number;
+  total_conversions: number;
+  total_activities: number;
+  last_upload_at: string | null;
+  last_edit_at: string | null;
+  last_login_at: string | null;
+}
+
+export interface MyUpload {
+  id: string;
+  name: string;
+  size: number;
+  mime_type: string | null;
+  category: string | null;
+  file_type: string | null;
+  created_at: string;
+  drive_email: string | null;
+}
+
+export interface MyEdit {
+  file_id: string;
+  file_name: string;
+  file_size: number | null;
+  mime_type: string | null;
+  edit_count: number;
+  last_edited_at: string;
+  last_version_number: number | null;
+}
+
+// =====================================================
+// API CALLS — PROFILE
 // =====================================================
 export async function getProfile(): Promise<UserProfile> {
   const { data } = await api.get<UserProfile>("/profile/");
@@ -195,6 +234,9 @@ export async function updatePreferences(
   return data;
 }
 
+// =====================================================
+// API CALLS — NOTIFICATIONS
+// =====================================================
 export async function getNotificationPrefs(): Promise<NotificationPrefs> {
   const { data } = await api.get<NotificationPrefs>("/profile/notifications");
   return data;
@@ -210,6 +252,31 @@ export async function updateNotificationPrefs(
   return data;
 }
 
+// =====================================================
+// ⭐ API CALLS — ACCOUNT STATS
+// =====================================================
+export async function getAccountStats(): Promise<AccountStats> {
+  const { data } = await api.get<AccountStats>("/profile/account-stats");
+  return data;
+}
+
+export async function listMyUploads(limit = 50): Promise<MyUpload[]> {
+  const { data } = await api.get<MyUpload[]>("/profile/my-uploads", {
+    params: { limit },
+  });
+  return data;
+}
+
+export async function listMyEdits(limit = 50): Promise<MyEdit[]> {
+  const { data } = await api.get<MyEdit[]>("/profile/my-edits", {
+    params: { limit },
+  });
+  return data;
+}
+
+// =====================================================
+// API CALLS — SESSIONS
+// =====================================================
 export async function listSessions(): Promise<Session[]> {
   const { data } = await api.get<Session[]>("/profile/sessions");
   return data;
@@ -223,6 +290,9 @@ export async function revokeAllOtherSessions(): Promise<void> {
   await api.delete("/profile/sessions");
 }
 
+// =====================================================
+// API CALLS — ACTIVITY
+// =====================================================
 export async function listActivity(
   limit = 50,
   action?: string,
@@ -256,11 +326,17 @@ export async function listPageViews(limit = 100): Promise<PageView[]> {
   return data;
 }
 
+// =====================================================
+// API CALLS — STORAGE
+// =====================================================
 export async function getStorageInfo(): Promise<StorageInfo> {
   const { data } = await api.get<StorageInfo>("/profile/storage");
   return data;
 }
 
+// =====================================================
+// API CALLS — CHANGE PASSWORD
+// =====================================================
 export async function changePasswordFromProfile(
   currentPassword: string,
   newPassword: string,
