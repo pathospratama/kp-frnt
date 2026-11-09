@@ -20,18 +20,17 @@ import {
   Save,
   LogOut,
   Trash2,
-  Eye,
-  EyeOff,
   Calendar,
-  Mail,
-  Phone,
-  MapPin,
-  Building2,
-  IdCard,
   Clock,
   Globe,
   Sparkles,
   RefreshCw,
+  Smartphone,
+  Tablet,
+  Bot,
+  MapPin,
+  Wifi,
+  Compass,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -47,12 +46,14 @@ import {
   revokeSession,
   revokeAllOtherSessions,
   listActivity,
+  listPageViews,
   getStorageInfo,
   changePasswordFromProfile,
   type UserProfile,
   type NotificationPrefs,
   type Session,
   type ActivityItem,
+  type PageView,
   type StorageInfo,
 } from "@/lib/api/profile";
 import { formatBytes, formatDate, formatDateTime } from "@/lib/yudit/utils";
@@ -73,7 +74,12 @@ type SectionKey =
   | "activity"
   | "storage";
 
-const SECTIONS: { key: SectionKey; label: string; icon: typeof User; desc: string }[] = [
+const SECTIONS: {
+  key: SectionKey;
+  label: string;
+  icon: typeof User;
+  desc: string;
+}[] = [
   { key: "personal", label: "Personal Information", icon: User, desc: "Identitas dan informasi kepegawaian" },
   { key: "professional", label: "Professional Information", icon: Briefcase, desc: "Jabatan, unit kerja dan struktur organisasi" },
   { key: "security", label: "Security & Privacy", icon: Shield, desc: "Password, MFA dan keamanan akun" },
@@ -160,7 +166,7 @@ export function ProfileView() {
                 )}
               </div>
               <button
-                className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full bg-[var(--y-primary)] text-white shadow-md hover:bg-[var(--y-primary)]/80"
+                className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full bg-[var(--y-primary)] text-white shadow-md hover:opacity-90"
                 title="Ganti foto (segera hadir)"
               >
                 <Camera size={13} />
@@ -689,7 +695,7 @@ function SecuritySection({ profile }: { profile: UserProfile }) {
 }
 
 // =====================================================
-// SESSIONS SECTION
+// SESSIONS SECTION — ENHANCED
 // =====================================================
 function SessionsSection() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -738,7 +744,7 @@ function SessionsSection() {
     <div className="space-y-5">
       <SectionHeader
         title="Devices & Sessions"
-        desc="Perangkat dan sesi login aktif"
+        desc="Perangkat dan sesi login aktif dengan detail lengkap"
       />
 
       <div className="flex justify-end">
@@ -760,53 +766,118 @@ function SessionsSection() {
           Tidak ada sesi aktif
         </div>
       ) : (
-        <div className="space-y-2">
-          {sessions.map((s) => (
-            <div
-              key={s.id}
-              className={cn(
-                "flex items-center gap-3 rounded-xl border bg-[var(--y-bg)] p-3",
-                s.is_current
-                  ? "border-[var(--y-primary)]"
-                  : "border-[var(--y-border)]",
-              )}
-            >
+        <div className="space-y-3">
+          {sessions.map((s) => {
+            const Icon = getDeviceIcon(s.device_type);
+            return (
               <div
+                key={s.id}
                 className={cn(
-                  "grid h-10 w-10 shrink-0 place-items-center rounded-xl",
+                  "rounded-xl border bg-[var(--y-bg)] p-4",
                   s.is_current
-                    ? "bg-[rgba(16,185,129,0.15)] text-[#10b981]"
-                    : "bg-[var(--y-bg-hover)] text-[var(--y-text-dim)]",
+                    ? "border-[var(--y-primary)] ring-2 ring-[rgba(239,68,68,0.1)]"
+                    : "border-[var(--y-border)]",
                 )}
               >
-                <Monitor size={18} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-semibold text-[var(--y-text)]">
-                    {s.device_name || "Unknown"}
-                  </span>
-                  {s.is_current && (
-                    <span className="rounded-full bg-[rgba(16,185,129,0.15)] px-2 py-0.5 text-[9px] font-bold text-[#10b981]">
-                      CURRENT
-                    </span>
+                <div className="flex items-start gap-3">
+                  <div
+                    className={cn(
+                      "grid h-11 w-11 shrink-0 place-items-center rounded-xl",
+                      s.is_current
+                        ? "bg-[rgba(16,185,129,0.15)] text-[#10b981]"
+                        : "bg-[var(--y-bg-hover)] text-[var(--y-text-dim)]",
+                    )}
+                  >
+                    <Icon size={20} />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    {/* Header */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate text-sm font-bold text-[var(--y-text)]">
+                        {s.device_display || s.device_name || "Unknown Device"}
+                      </span>
+                      {s.is_current && (
+                        <span className="rounded-full bg-[rgba(16,185,129,0.15)] px-2 py-0.5 text-[9px] font-bold text-[#10b981]">
+                          CURRENT
+                        </span>
+                      )}
+                      {s.device_type && (
+                        <span className="rounded-full bg-[var(--y-bg-hover)] px-2 py-0.5 text-[9px] font-semibold uppercase text-[var(--y-text-mute)]">
+                          {s.device_type}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Detail grid */}
+                    <div className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-[11px] sm:grid-cols-2">
+                      {s.device_brand && (
+                        <DetailRow label="Brand" value={s.device_brand} />
+                      )}
+                      {s.device_model &&
+                        s.device_model !== "Unknown" && (
+                          <DetailRow
+                            label="Model"
+                            value={s.device_model}
+                            mono
+                          />
+                        )}
+                      {s.os && (
+                        <DetailRow
+                          label="OS"
+                          value={`${s.os}${s.os_version ? ` ${s.os_version}` : ""}`}
+                        />
+                      )}
+                      {s.browser && (
+                        <DetailRow
+                          label="Browser"
+                          value={`${s.browser}${s.browser_version ? ` ${s.browser_version}` : ""}`}
+                        />
+                      )}
+                      {s.ip_address && (
+                        <DetailRow label="IP" value={s.ip_address} mono />
+                      )}
+                      {s.location && (
+                        <DetailRow label="Lokasi" value={s.location} />
+                      )}
+                      {s.isp && (
+                        <DetailRow label="ISP" value={s.isp} truncate />
+                      )}
+                      {s.last_page && (
+                        <DetailRow
+                          label="Halaman Terakhir"
+                          value={s.last_page}
+                          mono
+                        />
+                      )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] text-[var(--y-text-mute)]">
+                      <span className="inline-flex items-center gap-1">
+                        <Clock size={10} />
+                        Aktif {formatDateTime(s.last_active_at)}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <Calendar size={10} />
+                        Login {formatDateTime(s.created_at)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {!s.is_current && (
+                    <button
+                      onClick={() => handleRevoke(s.id)}
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[var(--y-text-mute)] hover:bg-[rgba(239,68,68,0.15)] hover:text-[var(--y-danger)]"
+                      title="Cabut sesi ini"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   )}
                 </div>
-                <div className="text-[11px] text-[var(--y-text-mute)]">
-                  {s.ip_address || "-"} · Aktif {formatDateTime(s.last_active_at)}
-                </div>
               </div>
-              {!s.is_current && (
-                <button
-                  onClick={() => handleRevoke(s.id)}
-                  className="grid h-8 w-8 place-items-center rounded-lg text-[var(--y-text-mute)] hover:bg-[rgba(239,68,68,0.15)] hover:text-[var(--y-danger)]"
-                  title="Cabut sesi ini"
-                >
-                  <Trash2 size={14} />
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -859,14 +930,46 @@ function NotificationsSection() {
     );
   }
 
-  const items: { key: keyof NotificationPrefs; label: string; desc: string }[] = [
-    { key: "file_uploaded", label: "File Diunggah", desc: "Notifikasi saat ada file baru diunggah" },
-    { key: "document_assigned", label: "Dokumen Ditugaskan", desc: "Notifikasi saat dokumen di-assign ke Anda" },
-    { key: "drive_errors", label: "Error Google Drive", desc: "Notifikasi saat token Drive perlu reconnect" },
-    { key: "monthly_reports", label: "Laporan Bulanan", desc: "Ringkasan storage & aktivitas setiap bulan" },
-    { key: "collaboration_invites", label: "Undangan Kolaborasi", desc: "Notifikasi saat diundang ke workspace" },
-    { key: "security_alerts", label: "Peringatan Keamanan", desc: "Notifikasi login/perubahan password" },
-    { key: "product_updates", label: "Update Produk", desc: "Info fitur dan pembaruan aplikasi" },
+  const items: {
+    key: keyof NotificationPrefs;
+    label: string;
+    desc: string;
+  }[] = [
+    {
+      key: "file_uploaded",
+      label: "File Diunggah",
+      desc: "Notifikasi saat ada file baru diunggah",
+    },
+    {
+      key: "document_assigned",
+      label: "Dokumen Ditugaskan",
+      desc: "Notifikasi saat dokumen di-assign ke Anda",
+    },
+    {
+      key: "drive_errors",
+      label: "Error Google Drive",
+      desc: "Notifikasi saat token Drive perlu reconnect",
+    },
+    {
+      key: "monthly_reports",
+      label: "Laporan Bulanan",
+      desc: "Ringkasan storage & aktivitas setiap bulan",
+    },
+    {
+      key: "collaboration_invites",
+      label: "Undangan Kolaborasi",
+      desc: "Notifikasi saat diundang ke workspace",
+    },
+    {
+      key: "security_alerts",
+      label: "Peringatan Keamanan",
+      desc: "Notifikasi login/perubahan password",
+    },
+    {
+      key: "product_updates",
+      label: "Update Produk",
+      desc: "Info fitur dan pembaruan aplikasi",
+    },
   ];
 
   return (
@@ -895,7 +998,9 @@ function NotificationsSection() {
               disabled={saving === item.key}
               className={cn(
                 "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
-                prefs[item.key] ? "bg-[var(--y-primary)]" : "bg-[var(--y-bg-elev-2)]",
+                prefs[item.key]
+                  ? "bg-[var(--y-primary)]"
+                  : "bg-[var(--y-bg-elev-2)]",
               )}
             >
               <span
@@ -1133,21 +1238,28 @@ function CollaborationSection({ profile }: { profile: UserProfile }) {
 }
 
 // =====================================================
-// ACTIVITY SECTION
+// ACTIVITY SECTION — ENHANCED (Activity + Page Views)
 // =====================================================
 function ActivitySection() {
   const [items, setItems] = useState<ActivityItem[]>([]);
+  const [pageViews, setPageViews] = useState<PageView[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("");
+  const [tab, setTab] = useState<"activity" | "pages">("activity");
 
   const load = async () => {
     setLoading(true);
     try {
-      const data = await listActivity(50, filter || undefined);
-      setItems(data);
+      if (tab === "activity") {
+        const data = await listActivity(50, filter || undefined);
+        setItems(data);
+      } else {
+        const data = await listPageViews(100);
+        setPageViews(data);
+      }
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return;
-      toast.error("Gagal memuat aktivitas");
+      toast.error("Gagal memuat riwayat");
     } finally {
       setLoading(false);
     }
@@ -1156,7 +1268,7 @@ function ActivitySection() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter]);
+  }, [filter, tab]);
 
   const formatAction = (action: string) => {
     const map: Record<string, string> = {
@@ -1179,62 +1291,148 @@ function ActivitySection() {
     <div className="space-y-5">
       <SectionHeader
         title="Activity History"
-        desc="Riwayat aktivitas akun Anda"
+        desc="Riwayat aktivitas akun & halaman yang dikunjungi"
       />
 
-      <div className="flex gap-2">
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="y-focus h-9 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-[12px] text-[var(--y-text)]"
-        >
-          <option value="">Semua Aktivitas</option>
-          <option value="login">Login</option>
-          <option value="update_profile">Update Profil</option>
-          <option value="password_changed">Password Diubah</option>
-          <option value="upload_file">Upload File</option>
-          <option value="share_file">Share File</option>
-          <option value="revoke_session">Cabut Sesi</option>
-        </select>
+      {/* Tab switch */}
+      <div className="inline-flex gap-1 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] p-1">
         <button
-          onClick={load}
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-[12px] font-semibold text-[var(--y-text-dim)] hover:bg-[var(--y-bg-hover)]"
+          onClick={() => setTab("activity")}
+          className={cn(
+            "rounded-md px-3 py-1.5 text-[12px] font-semibold transition-colors",
+            tab === "activity"
+              ? "bg-[var(--y-primary)] text-white"
+              : "text-[var(--y-text-dim)] hover:text-[var(--y-text)]",
+          )}
         >
-          <RefreshCw size={12} />
-          Refresh
+          <History size={12} className="mr-1 inline" />
+          Aktivitas
+        </button>
+        <button
+          onClick={() => setTab("pages")}
+          className={cn(
+            "rounded-md px-3 py-1.5 text-[12px] font-semibold transition-colors",
+            tab === "pages"
+              ? "bg-[var(--y-primary)] text-white"
+              : "text-[var(--y-text-dim)] hover:text-[var(--y-text)]",
+          )}
+        >
+          <Globe size={12} className="mr-1 inline" />
+          Halaman
         </button>
       </div>
+
+      {tab === "activity" && (
+        <div className="flex gap-2">
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="y-focus h-9 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-[12px]"
+          >
+            <option value="">Semua Aktivitas</option>
+            <option value="login">Login</option>
+            <option value="update_profile">Update Profil</option>
+            <option value="password_changed">Password Diubah</option>
+            <option value="share_file">Share File</option>
+            <option value="revoke_session">Cabut Sesi</option>
+          </select>
+          <button
+            onClick={load}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-[12px] font-semibold text-[var(--y-text-dim)] hover:bg-[var(--y-bg-hover)]"
+          >
+            <RefreshCw size={12} />
+            Refresh
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="grid place-items-center py-10">
           <Loader2 size={22} className="animate-spin text-[var(--y-primary)]" />
         </div>
-      ) : items.length === 0 ? (
+      ) : tab === "activity" ? (
+        items.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-[var(--y-border)] py-10 text-center text-sm text-[var(--y-text-mute)]">
+            Belum ada aktivitas
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-start gap-3 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] p-3"
+              >
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--y-bg-hover)] text-[var(--y-text-dim)]">
+                  <History size={14} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-[var(--y-text)]">
+                    {formatAction(item.action)}
+                  </div>
+                  {item.description && (
+                    <div className="text-[11px] text-[var(--y-text-dim)]">
+                      {item.description}
+                    </div>
+                  )}
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-[var(--y-text-mute)]">
+                    <span className="inline-flex items-center gap-1">
+                      <Clock size={9} />
+                      {formatDateTime(item.created_at)}
+                    </span>
+                    {item.ip_address && (
+                      <span className="font-mono">{item.ip_address}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : pageViews.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[var(--y-border)] py-10 text-center text-sm text-[var(--y-text-mute)]">
-          Belum ada aktivitas
+          Belum ada halaman yang dikunjungi
         </div>
       ) : (
         <div className="space-y-1.5">
-          {items.map((item) => (
+          {pageViews.map((pv) => (
             <div
-              key={item.id}
+              key={pv.id}
               className="flex items-start gap-3 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] p-3"
             >
-              <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--y-bg-hover)] text-[var(--y-text-dim)]">
-                <History size={14} />
+              <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[rgba(99,102,241,0.15)] text-[var(--y-primary)]">
+                <Globe size={14} />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold text-[var(--y-text)]">
-                  {formatAction(item.action)}
+                <div className="truncate text-sm font-semibold text-[var(--y-text)]">
+                  {pv.page_title || pv.page_path}
                 </div>
-                {item.description && (
-                  <div className="text-[11px] text-[var(--y-text-dim)]">
-                    {item.description}
-                  </div>
-                )}
-                <div className="mt-0.5 text-[10px] text-[var(--y-text-mute)]">
-                  {formatDateTime(item.created_at)}
-                  {item.ip_address && ` · ${item.ip_address}`}
+                <div className="truncate font-mono text-[11px] text-[var(--y-text-dim)]">
+                  {pv.page_path}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-[var(--y-text-mute)]">
+                  <span className="inline-flex items-center gap-1">
+                    <Clock size={9} />
+                    {formatDateTime(pv.created_at)}
+                  </span>
+                  {pv.device_display && (
+                    <span className="inline-flex items-center gap-1">
+                      <Monitor size={9} />
+                      {pv.device_display}
+                    </span>
+                  )}
+                  {pv.city && (
+                    <span className="inline-flex items-center gap-1">
+                      <MapPin size={9} />
+                      {pv.city}
+                      {pv.country ? `, ${pv.country}` : ""}
+                    </span>
+                  )}
+                  {pv.duration_ms != null && pv.duration_ms > 0 && (
+                    <span className="inline-flex items-center gap-1">
+                      <Compass size={9} />
+                      {(pv.duration_ms / 1000).toFixed(1)}s
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -1303,7 +1501,8 @@ function StorageSection() {
             className="h-full rounded-full transition-all"
             style={{
               width: `${pct}%`,
-              background: "linear-gradient(90deg, var(--y-primary), var(--y-accent))",
+              background:
+                "linear-gradient(90deg, var(--y-primary), var(--y-accent))",
             }}
           />
         </div>
@@ -1374,25 +1573,4 @@ function ReadOnlyField({
       </div>
       <div
         className={cn(
-          "mt-0.5 break-all rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 py-2 text-[13px] text-[var(--y-text)]",
-          mono && "font-mono text-[11px]",
-        )}
-      >
-        {value || "-"}
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] p-3">
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--y-text-mute)]">
-        {label}
-      </div>
-      <div className="mt-1 text-lg font-bold tabular-nums text-[var(--y-text)]">
-        {value}
-      </div>
-    </div>
-  );
-}
+          "mt-0.5 break-all rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-
