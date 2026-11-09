@@ -17,13 +17,7 @@ export const metadata: Metadata = {
   title: "DPRD Cloud — Satu Cloud, Banyak Drive",
   description:
     "Satu cloud virtual, banyak Google Drive di belakangnya. Kelola, kategorikan, dan arsipkan dokumen dengan elegan.",
-  keywords: [
-    "DPRD Cloud",
-    "Cloud Storage",
-    "Google Drive",
-    "File Management",
-    "Dokumen",
-  ],
+  keywords: ["DPRD Cloud", "Cloud Storage", "Google Drive", "File Management", "Dokumen"],
   authors: [{ name: "DPRD Cloud" }],
   icons: {
     icon:
@@ -32,19 +26,11 @@ export const metadata: Metadata = {
 };
 
 /**
- * ⭐ INLINE SCRIPT ANTI-FOUC
+ * Anti-FOUC script — dieksekusi SEBELUM React hydration.
+ * Membaca localStorage, resolve theme, set class + color-scheme.
  *
- * Script ini dieksekusi SEBELUM React hydration & SEBELUM browser
- * melakukan paint pertama kali. Tujuannya:
- *
- * 1. Baca theme dari localStorage (yang sudah diset dari login sebelumnya)
- * 2. Kalau "system" → cek prefers-color-scheme OS
- * 3. Set `class="dark"` atau `class="light"` di <html>
- * 4. Set `color-scheme` CSS property agar native form elements ikut
- *
- * Hasil: TIDAK ADA flash putih saat user dengan preferensi dark membuka app.
- *
- * Kalau localStorage kosong (user baru) → default ke "system".
+ * ⚠️ PENTING: Pakai `var` (bukan `let`/`const`) untuk kompatibilitas
+ *    script inline di head.
  */
 const ANTI_FOUC_SCRIPT = `
 (function() {
@@ -56,7 +42,6 @@ const ANTI_FOUC_SCRIPT = `
     } else if (theme === 'light') {
       resolved = 'light';
     } else {
-      // system
       resolved = window.matchMedia('(prefers-color-scheme: dark)').matches
         ? 'dark'
         : 'light';
@@ -66,7 +51,6 @@ const ANTI_FOUC_SCRIPT = `
     root.classList.add(resolved);
     root.style.colorScheme = resolved;
   } catch (e) {
-    // Fail-safe: kalau apapun error, pakai light
     document.documentElement.classList.add('light');
     document.documentElement.style.colorScheme = 'light';
   }
@@ -75,20 +59,17 @@ const ANTI_FOUC_SCRIPT = `
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="id" suppressHydrationWarning>
       <head>
-        {/* ⭐ Anti-FOUC script — WAJIB paling awal di <head> */}
         <script
           dangerouslySetInnerHTML={{ __html: ANTI_FOUC_SCRIPT }}
           suppressHydrationWarning
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
         <Toaster />
