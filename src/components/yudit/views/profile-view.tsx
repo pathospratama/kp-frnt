@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  // Existing
   User,
   Shield,
   Monitor,
@@ -28,6 +29,16 @@ import {
   MapPin,
   ChevronDown,
   Compass,
+  // ⭐ NEW — icons untuk statistik akun
+  BarChart3,
+  Upload,
+  PencilLine,
+  Download,
+  Share2,
+  Eye,
+  FileCog,
+  FileText,
+  Inbox,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -44,13 +55,20 @@ import {
   listActivity,
   listPageViews,
   changePasswordFromProfile,
+  // ⭐ NEW — API untuk statistik akun
+  getAccountStats,
+  listMyUploads,
+  listMyEdits,
   type UserProfile,
   type NotificationPrefs,
   type Session,
   type ActivityItem,
   type PageView,
+  type AccountStats,
+  type MyUpload,
+  type MyEdit,
 } from "@/lib/api/profile";
-import { formatDate, formatDateTime } from "@/lib/yudit/utils";
+import { formatDate, formatDateTime, formatBytes } from "@/lib/yudit/utils";
 import { ApiError } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import {
@@ -64,6 +82,7 @@ import {
 // =====================================================
 type SectionKey =
   | "personal"
+  | "stats"
   | "security"
   | "sessions"
   | "notifications"
@@ -81,6 +100,12 @@ const SECTIONS: {
     label: "Personal Information",
     icon: User,
     desc: "Identitas dan informasi kepegawaian",
+  },
+  {
+    key: "stats",
+    label: "Statistik Akun",
+    icon: BarChart3,
+    desc: "Upload, edit & aktivitas Anda",
   },
   {
     key: "security",
@@ -299,6 +324,7 @@ export function ProfileView() {
               {activeSection === "personal" && (
                 <PersonalSection profile={profile} onChange={setProfile} />
               )}
+              {activeSection === "stats" && <AccountStatsSection />}
               {activeSection === "security" && (
                 <SecuritySection profile={profile} />
               )}
@@ -313,6 +339,453 @@ export function ProfileView() {
         </div>
       </div>
     </div>
+  );
+}
+
+// =====================================================
+// ⭐ ACCOUNT STATS SECTION — Statistik Akun
+// =====================================================
+function AccountStatsSection() {
+  const [stats, setStats] = useState<AccountStats | null>(null);
+  const [uploads, setUploads] = useState<MyUpload[]>([]);
+  const [edits, setEdits] = useState<MyEdit[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Dropdown states
+  const [openUploads, setOpenUploads] = useState(false);
+  const [openEdits, setOpenEdits] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [s, u, e] = await Promise.all([
+        getAccountStats(),
+        listMyUploads(50),
+        listMyEdits(50),
+      ]);
+      setStats(s);
+      setUploads(u);
+      setEdits(e);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) return;
+      const msg =
+        err instanceof ApiError ? err.detail : "Gagal memuat statistik";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="grid place-items-center py-20">
+        <Loader2 size={28} className="animate-spin text-[var(--y-primary)]" />
+      </div>
+    );
+  }
+
+  if (error || !stats) {
+    return (
+      <div className="rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] p-6 text-center">
+        <AlertCircle
+          size={28}
+          className="mx-auto mb-2 text-[var(--y-danger)]"
+        />
+        <p className="text-sm text-[var(--y-text-dim)]">
+          {error || "Statistik tidak tersedia"}
+        </p>
+        <button
+          onClick={load}
+          className="mt-3 inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg-elev)] px-3 text-[12px] font-semibold text-[var(--y-text-dim)] hover:bg-[var(--y-bg-hover)]"
+        >
+          <RefreshCw size={13} />
+          Coba Lagi
+        </button>
+      </div>
+    );
+  }
+
+  // =====================================================
+  // STAT CARDS — 6 kartu ringkas
+  // =====================================================
+  const cards: {
+    label: string;
+    value: string;
+    sub: string;
+    Icon: React.ElementType;
+    color: string;
+    bg: string;
+  }[] = [
+    {
+      label: "Total Upload",
+      value: String(stats.total_uploads),
+      sub: formatBytes(stats.total_uploads_size),
+      Icon: Upload,
+      color: "#6366f1",
+      bg: "rgba(99,102,241,0.12)",
+    },
+    {
+      label: "Total Edit",
+      value: String(stats.total_edits),
+      sub: `${stats.total_edited_files} file unik`,
+      Icon: PencilLine,
+      color: "#10b981",
+      bg: "rgba(16,185,129,0.12)",
+    },
+    {
+      label: "Download",
+      value: String(stats.total_downloads),
+      sub: "File diunduh",
+      Icon: Download,
+      color: "#22d3ee",
+      bg: "rgba(34,211,238,0.12)",
+    },
+    {
+      label: "Preview",
+      value: String(stats.total_previews),
+      sub: "File dilihat",
+      Icon: Eye,
+      color: "#f59e0b",
+      bg: "rgba(245,158,11,0.12)",
+    },
+    {
+      label: "Share Link",
+      value: String(stats.total_shares),
+      sub: "Link dibuat",
+      Icon: Share2,
+      color: "#a855f7",
+      bg: "rgba(168,85,247,0.12)",
+    },
+    {
+      label: "Konversi",
+      value: String(stats.total_conversions),
+      sub: "File dikonversi",
+      Icon: FileCog,
+      color: "#ec4899",
+      bg: "rgba(236,72,153,0.12)",
+    },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader
+        title="Statistik Akun"
+        desc="Ringkasan aktivitas upload, edit, dan interaksi Anda"
+      />
+
+      {/* ===== REFRESH BUTTON ===== */}
+      <div className="flex justify-end">
+        <button
+          onClick={load}
+          disabled={loading}
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-2.5 text-[11px] font-semibold text-[var(--y-text-dim)] transition-colors hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)] disabled:opacity-50"
+        >
+          <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+          Refresh
+        </button>
+      </div>
+
+      {/* ===== GRID STAT CARDS ===== */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {cards.map((c, i) => (
+          <motion.div
+            key={c.label}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.04 }}
+            className="rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] p-3.5"
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--y-text-mute)]">
+                {c.label}
+              </span>
+              <div
+                className="grid h-7 w-7 place-items-center rounded-lg"
+                style={{ background: c.bg, color: c.color }}
+              >
+                <c.Icon size={13} />
+              </div>
+            </div>
+            <div
+              className="text-xl font-bold tabular-nums"
+              style={{ color: c.color }}
+            >
+              {c.value}
+            </div>
+            <div className="mt-0.5 truncate text-[10.5px] text-[var(--y-text-mute)]">
+              {c.sub}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* ===== LAST ACTIVITY INFO ===== */}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {stats.last_login_at && (
+          <StatInfo
+            icon={<Clock size={12} />}
+            label="Login Terakhir"
+            value={formatDateTime(stats.last_login_at)}
+          />
+        )}
+        {stats.last_upload_at && (
+          <StatInfo
+            icon={<Upload size={12} />}
+            label="Upload Terakhir"
+            value={formatDateTime(stats.last_upload_at)}
+          />
+        )}
+        {stats.last_edit_at && (
+          <StatInfo
+            icon={<PencilLine size={12} />}
+            label="Edit Terakhir"
+            value={formatDateTime(stats.last_edit_at)}
+          />
+        )}
+      </div>
+
+      {/* ===== DROPDOWN: MY UPLOADS ===== */}
+      <DropdownPanel
+        open={openUploads}
+        onToggle={() => setOpenUploads((v) => !v)}
+        icon={<Upload size={15} />}
+        iconBg="rgba(99,102,241,0.12)"
+        iconColor="#6366f1"
+        title="Dokumen yang Saya Upload"
+        count={uploads.length}
+        countLabel="file"
+        empty={uploads.length === 0}
+        emptyText="Belum ada file yang Anda upload"
+      >
+        <div className="max-h-[400px] overflow-y-auto">
+          {uploads.map((u, i) => (
+            <UploadRow key={u.id} upload={u} index={i} />
+          ))}
+        </div>
+      </DropdownPanel>
+
+      {/* ===== DROPDOWN: MY EDITS ===== */}
+      <DropdownPanel
+        open={openEdits}
+        onToggle={() => setOpenEdits((v) => !v)}
+        icon={<PencilLine size={15} />}
+        iconBg="rgba(16,185,129,0.12)"
+        iconColor="#10b981"
+        title="Dokumen yang Saya Edit"
+        count={edits.length}
+        countLabel="file"
+        empty={edits.length === 0}
+        emptyText="Belum ada file yang Anda edit"
+      >
+        <div className="max-h-[400px] overflow-y-auto">
+          {edits.map((e, i) => (
+            <EditRow key={e.file_id} edit={e} index={i} />
+          ))}
+        </div>
+      </DropdownPanel>
+    </div>
+  );
+}
+
+// =====================================================
+// ⭐ SUB-COMPONENTS untuk AccountStatsSection
+// =====================================================
+function StatInfo({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-start gap-2 rounded-lg border border-[var(--y-border-soft)] bg-[var(--y-bg)] px-3 py-2">
+      <span className="mt-0.5 text-[var(--y-text-mute)]">{icon}</span>
+      <div className="min-w-0">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--y-text-mute)]">
+          {label}
+        </div>
+        <div className="truncate text-[11.5px] font-semibold text-[var(--y-text-dim)]">
+          {value}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DropdownPanel({
+  open,
+  onToggle,
+  icon,
+  iconBg,
+  iconColor,
+  title,
+  count,
+  countLabel,
+  empty,
+  emptyText,
+  children,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  icon: React.ReactNode;
+  iconBg: string;
+  iconColor: string;
+  title: string;
+  count: number;
+  countLabel: string;
+  empty: boolean;
+  emptyText: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)]">
+      <button
+        onClick={onToggle}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--y-bg-hover)]"
+      >
+        <div
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg"
+          style={{ background: iconBg, color: iconColor }}
+        >
+          {icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-bold text-[var(--y-text)]">{title}</div>
+          <div className="text-[11px] text-[var(--y-text-mute)]">
+            {count} {countLabel}
+          </div>
+        </div>
+        <ChevronDown
+          size={16}
+          className={cn(
+            "shrink-0 text-[var(--y-text-mute)] transition-transform duration-200",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="border-t border-[var(--y-border-soft)] p-2">
+              {empty ? (
+                <div className="grid place-items-center py-8 text-center">
+                  <Inbox
+                    size={28}
+                    className="mb-1.5 text-[var(--y-text-mute)]"
+                  />
+                  <p className="text-[11.5px] text-[var(--y-text-mute)]">
+                    {emptyText}
+                  </p>
+                </div>
+              ) : (
+                children
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function UploadRow({ upload, index }: { upload: MyUpload; index: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -4 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: Math.min(index * 0.02, 0.2) }}
+      className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors hover:bg-[var(--y-bg-hover)]"
+    >
+      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[rgba(99,102,241,0.1)] text-[#6366f1]">
+        <FileText size={14} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div
+          className="truncate text-[12px] font-semibold text-[var(--y-text)]"
+          title={upload.name}
+        >
+          {upload.name}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-[var(--y-text-mute)]">
+          <span className="tabular-nums">{formatBytes(upload.size)}</span>
+          {upload.category && (
+            <>
+              <span>•</span>
+              <span className="truncate">{upload.category}</span>
+            </>
+          )}
+          {upload.drive_email && (
+            <>
+              <span>•</span>
+              <span className="truncate" title={upload.drive_email}>
+                {upload.drive_email.split("@")[0]}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+      <div className="shrink-0 text-[10px] text-[var(--y-text-mute)]">
+        {formatDate(upload.created_at)}
+      </div>
+    </motion.div>
+  );
+}
+
+function EditRow({ edit, index }: { edit: MyEdit; index: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -4 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: Math.min(index * 0.02, 0.2) }}
+      className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors hover:bg-[var(--y-bg-hover)]"
+    >
+      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[rgba(16,185,129,0.1)] text-[#10b981]">
+        <PencilLine size={14} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div
+          className="truncate text-[12px] font-semibold text-[var(--y-text)]"
+          title={edit.file_name}
+        >
+          {edit.file_name}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-[var(--y-text-mute)]">
+          <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(16,185,129,0.15)] px-1.5 py-0.5 font-bold text-[#10b981]">
+            {edit.edit_count}× edit
+          </span>
+          {edit.file_size != null && (
+            <span className="tabular-nums">
+              {formatBytes(edit.file_size)}
+            </span>
+          )}
+          {edit.last_version_number != null && (
+            <>
+              <span>•</span>
+              <span>v{edit.last_version_number}</span>
+            </>
+          )}
+        </div>
+      </div>
+      <div className="shrink-0 text-[10px] text-[var(--y-text-mute)]">
+        {formatDate(edit.last_edited_at)}
+      </div>
+    </motion.div>
   );
 }
 
@@ -954,10 +1427,7 @@ function NotificationsSection() {
 }
 
 // =====================================================
-// PREFERENCES SECTION — FINAL FIX
-// - Theme langsung apply + auto-save ke DB (tanpa klik simpan)
-// - Bahasa hardcode Indonesia
-// - Timezone dropdown
+// PREFERENCES SECTION
 // =====================================================
 function PreferencesSection({
   profile,
@@ -966,8 +1436,6 @@ function PreferencesSection({
   profile: UserProfile;
   onChange: (p: UserProfile) => void;
 }) {
-  // ⭐ Init theme dari localStorage (bukan profile.theme mentah)
-  //    karena profile.theme bisa "System" (kapital) atau null dari DB lama
   const [form, setForm] = useState({
     theme: getCurrentTheme() as "light" | "dark" | "system",
     timezone: profile.timezone || "Asia/Jakarta",
@@ -977,15 +1445,9 @@ function PreferencesSection({
   });
   const [saving, setSaving] = useState(false);
 
-  // ⭐ Saat user pilih theme: apply INSTAN ke DOM + auto-save ke DB
   const handleThemeChange = async (theme: "light" | "dark" | "system") => {
-    // 1. Update state
     setForm((prev) => ({ ...prev, theme }));
-
-    // 2. Apply ke DOM SEKARANG (instant feedback)
     applyTheme(theme);
-
-    // 3. Auto-save ke DB (background, tidak block UI)
     try {
       const updated = await updatePreferences({ theme });
       onChange(updated);
@@ -996,7 +1458,6 @@ function PreferencesSection({
     } catch (e) {
       const msg = e instanceof ApiError ? e.detail : "Gagal menyimpan tema";
       toast.error(msg);
-      // Rollback ke theme sebelumnya
       applyTheme(form.theme);
     }
   };
@@ -1006,17 +1467,15 @@ function PreferencesSection({
     try {
       const updated = await updatePreferences({
         theme: form.theme,
-        language: "id", // ⭐ hardcode Indonesian
+        language: "id",
         timezone: form.timezone,
         email_notifications: form.email_notifications,
         push_notifications: form.push_notifications,
         digest_frequency: form.digest_frequency,
       });
       onChange(updated);
-
       applyTheme(updated.theme);
       applyLanguage("id");
-
       toast.success("Preferensi diperbarui");
     } catch (e) {
       const msg = e instanceof ApiError ? e.detail : "Gagal menyimpan";
@@ -1070,9 +1529,6 @@ function PreferencesSection({
         desc="Tema, zona waktu dan notifikasi aplikasi"
       />
 
-      {/* ============================================
-          THEME PICKER
-          ============================================ */}
       <div>
         <label className="mb-2 block text-[12px] font-semibold text-[var(--y-text-dim)]">
           Tema Aplikasi
@@ -1124,9 +1580,6 @@ function PreferencesSection({
         </p>
       </div>
 
-      {/* ============================================
-          TIMEZONE & DIGEST
-          ============================================ */}
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField label="Zona Waktu">
           <select
@@ -1157,9 +1610,6 @@ function PreferencesSection({
         </FormField>
       </div>
 
-      {/* ============================================
-          TOGGLES
-          ============================================ */}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] p-3">
           <div>
