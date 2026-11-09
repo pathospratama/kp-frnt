@@ -46,7 +46,11 @@ export function usePageTracker() {
     trackPageView({
       page_path: pagePath,
       page_title: pageTitle,
-      referrer: prevView ? `/?view=${prevView}` : document.referrer,
+      referrer: prevView
+        ? `/?view=${prevView}`
+        : typeof document !== "undefined"
+          ? document.referrer
+          : undefined,
       duration_ms: durationMs > 0 ? durationMs : undefined,
     }).catch(() => {
       // Silent — tracking tidak boleh ganggu UX
