@@ -35,6 +35,7 @@ import { DocEditor } from "./editor/doc-editor";
 import { GoogleDocViewer } from "./editor/google-doc-viewer";
 import { DocPreviewViewer } from "./editor/doc-preview-viewer";
 import { usePageTracker } from "@/hooks/use-page-tracker";
+import { useApplyPreferences } from "@/hooks/use-apply-preferences";
 
 // =====================================================
 // ASSIGN MODAL WRAPPER
@@ -221,6 +222,9 @@ export function YuditCloud() {
 
   // ⭐ Auto-track page views untuk Activity History
   usePageTracker();
+
+  // ⭐ Auto-apply theme & language setelah login
+  useApplyPreferences();
 
   useEffect(() => {
     registerToast((msg, type) => {
