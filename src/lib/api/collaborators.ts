@@ -43,68 +43,6 @@ export interface UpdateCollaboratorResponse {
 }
 
 // =====================================================
-// LIST
-// =====================================================
-export async function listCollaborators(): Promise<Collaborator[]> {
-  const { data } = await api.get<Collaborator[]>("/collaborators/");
-  return data;
-}
-
-// =====================================================
-// INVITE
-// =====================================================
-export async function inviteCollaborator(
-  payload: InvitePayload,
-): Promise<InviteCollaboratorResponse> {
-  try {
-    const { data } = await api.post<InviteCollaboratorResponse>(
-      "/collaborators/",
-      payload,
-      { timeout: 60_000 }, // email sending bisa lama (GAS retry)
-    );
-    return data;
-  } catch (err: unknown) {
-    // ⭐ Re-throw sebagai ApiError dengan pesan yang jelas
-    if (err instanceof ApiError) {
-      throw err;
-    }
-    throw new ApiError(0, "Gagal mengundang collaborator");
-  }
-}
-
-// =====================================================
-// UPDATE
-// =====================================================
-export async function updateCollaborator(
-  userId: string,
-  payload: {
-    role?: "super_admin" | "member";
-    is_active?: boolean;
-    reset_password?: boolean;
-  },
-): Promise<UpdateCollaboratorResponse> {
-  const { data } = await api.patch<UpdateCollaboratorResponse>(
-    `/collaborators/${userId}`,
-    payload,
-    { timeout: 60_000 },
-  );
-  return data;
-}
-
-// =====================================================
-// REMOVE
-// =====================================================
-export async function removeCollaborator(
-  userId: string,
-): Promise<{ message: string }> {
-  const { data } = await api.delete<{ message: string }>(
-    `/collaborators/${userId}`,
-  );
-  return data;
-}
-// src/lib/api/collaborators.ts — TAMBAHKAN di paling bawah
-
-// =====================================================
 // ⭐ COLLABORATOR STATS — hanya owner/super_admin
 // =====================================================
 export interface CollaboratorStats {
@@ -116,14 +54,17 @@ export interface CollaboratorStats {
   must_change_password: boolean;
   avatar_url: string | null;
 
+  // Upload
   total_uploads: number;
   total_uploads_size: number;
   last_upload_at: string | null;
 
+  // Edit
   total_edits: number;
   total_edited_files: number;
   last_edit_at: string | null;
 
+  // Activity
   total_downloads: number;
   total_previews: number;
   total_shares: number;
@@ -131,6 +72,7 @@ export interface CollaboratorStats {
   total_activities: number;
   last_login_at: string | null;
 
+  // Storage contribution
   contributed_size: number;
 }
 
@@ -166,6 +108,70 @@ export interface WorkspaceStatsSummary {
   total_conversions_workspace: number;
 }
 
+// =====================================================
+// API CALLS — LIST
+// =====================================================
+export async function listCollaborators(): Promise<Collaborator[]> {
+  const { data } = await api.get<Collaborator[]>("/collaborators/");
+  return data;
+}
+
+// =====================================================
+// API CALLS — INVITE
+// =====================================================
+export async function inviteCollaborator(
+  payload: InvitePayload,
+): Promise<InviteCollaboratorResponse> {
+  try {
+    const { data } = await api.post<InviteCollaboratorResponse>(
+      "/collaborators/",
+      payload,
+      { timeout: 60_000 }, // email sending bisa lama (GAS retry)
+    );
+    return data;
+  } catch (err: unknown) {
+    // ⭐ Re-throw sebagai ApiError dengan pesan yang jelas
+    if (err instanceof ApiError) {
+      throw err;
+    }
+    throw new ApiError(0, "Gagal mengundang collaborator");
+  }
+}
+
+// =====================================================
+// API CALLS — UPDATE
+// =====================================================
+export async function updateCollaborator(
+  userId: string,
+  payload: {
+    role?: "super_admin" | "member";
+    is_active?: boolean;
+    reset_password?: boolean;
+  },
+): Promise<UpdateCollaboratorResponse> {
+  const { data } = await api.patch<UpdateCollaboratorResponse>(
+    `/collaborators/${userId}`,
+    payload,
+    { timeout: 60_000 },
+  );
+  return data;
+}
+
+// =====================================================
+// API CALLS — REMOVE
+// =====================================================
+export async function removeCollaborator(
+  userId: string,
+): Promise<{ message: string }> {
+  const { data } = await api.delete<{ message: string }>(
+    `/collaborators/${userId}`,
+  );
+  return data;
+}
+
+// =====================================================
+// ⭐ API CALLS — STATS (owner/super_admin only)
+// =====================================================
 export async function getCollaboratorStats(): Promise<CollaboratorStats[]> {
   const { data } = await api.get<CollaboratorStats[]>("/collaborators/stats");
   return data;
