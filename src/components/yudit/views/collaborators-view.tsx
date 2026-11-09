@@ -1097,7 +1097,7 @@ function UserStatsCard({
           {formatBytes(stats.contributed_size)}
         </span>
         <span className="ml-auto text-[10px] text-[var(--y-text-mute)]">
-          {stats.total_uploadssize_placeholder}
+          {formatBytes(stats.total_uploads_size)}
         </span>
       </div>
 
