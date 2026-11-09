@@ -6,12 +6,18 @@ import { useYudit } from "@/lib/yudit/store";
 import { getProfile } from "@/lib/api/profile";
 import { ApiError } from "@/lib/api/client";
 
+// =====================================================
+// CONSTANTS
+// =====================================================
 const THEME_KEY = "yudit_theme";
 const LANGUAGE_KEY = "yudit_language";
 
 const VALID_THEMES = ["light", "dark", "system"] as const;
 type ThemeType = (typeof VALID_THEMES)[number];
 
+// =====================================================
+// VALIDATE THEME
+// =====================================================
 function isValidTheme(value: unknown): value is ThemeType {
   return (
     typeof value === "string" &&
@@ -19,6 +25,9 @@ function isValidTheme(value: unknown): value is ThemeType {
   );
 }
 
+/**
+ * Resolve theme "system" → "light" | "dark" berdasarkan preferensi OS.
+ */
 function resolveTheme(theme: ThemeType): "light" | "dark" {
   if (theme === "system") {
     if (typeof window === "undefined") return "light";
@@ -29,37 +38,48 @@ function resolveTheme(theme: ThemeType): "light" | "dark" {
   return theme;
 }
 
+// =====================================================
+// APPLY THEME
+// =====================================================
 /**
  * Terapkan theme ke <html>.
- * - Hapus class lama, tambah class baru
- * - Set color-scheme
+ *
+ * - Menghapus class `light` & `dark` lama
+ * - Menambahkan class baru sesuai theme
+ * - Set `color-scheme` CSS untuk form native elements
  * - Simpan ke localStorage
- * - Broadcast event
+ * - Trigger event global `yudit:theme-changed` agar komponen lain bisa react
  */
 export function applyTheme(theme: string): void {
   if (typeof document === "undefined") return;
 
+  // ⭐ Validasi — kalau tidak valid, fallback ke "system"
   const safeTheme: ThemeType = isValidTheme(theme) ? theme : "system";
   const resolved = resolveTheme(safeTheme);
 
   const root = document.documentElement;
 
-  // smooth transition 0.2s
+  // ⭐ Enable smooth transition (matikan setelah 300ms)
   root.classList.add("theme-transition");
   window.setTimeout(() => {
     root.classList.remove("theme-transition");
   }, 300);
 
+  // Hapus class lama
   root.classList.remove("light", "dark");
+  // Tambah class baru
   root.classList.add(resolved);
+  // ⭐ Set color-scheme — PENTING untuk form, scrollbar, autofill
   root.style.colorScheme = resolved;
 
+  // Simpan preferensi (bukan yang resolved, tapi yang dipilih user)
   try {
     localStorage.setItem(THEME_KEY, safeTheme);
   } catch {
-    /* ignore */
+    // ignore
   }
 
+  // ⭐ Broadcast ke komponen lain (toast, chart, dll)
   if (typeof window !== "undefined") {
     window.dispatchEvent(
       new CustomEvent("yudit:theme-changed", {
@@ -69,17 +89,33 @@ export function applyTheme(theme: string): void {
   }
 }
 
+// =====================================================
+// APPLY LANGUAGE
+// =====================================================
+/**
+ * Terapkan bahasa ke <html lang>.
+ * Saat ini hanya mendukung "id" (Indonesia).
+ */
 export function applyLanguage(language: string): void {
   if (typeof document === "undefined") return;
+
   const safeLang = language === "en" ? "en" : "id";
   document.documentElement.lang = safeLang;
+
   try {
     localStorage.setItem(LANGUAGE_KEY, safeLang);
   } catch {
-    /* ignore */
+    // ignore
   }
 }
 
+// =====================================================
+// GET CURRENT THEME
+// =====================================================
+/**
+ * Baca theme saat ini dari localStorage.
+ * Return "system" kalau tidak ada / invalid.
+ */
 export function getCurrentTheme(): ThemeType {
   if (typeof window === "undefined") return "system";
   try {
@@ -90,65 +126,132 @@ export function getCurrentTheme(): ThemeType {
   }
 }
 
+// =====================================================
+// LEGACY MEDIAQUERYLIST SUPPORT
+// =====================================================
+/**
+ * Attach listener ke MediaQueryList dengan fallback ke legacy API
+ * (addListener/removeListener) untuk browser lama (Safari < 14, dll).
+ *
+ * ⭐ Menggunakan type assertion yang aman alih-alih `@ts-expect-error`,
+ *    sehingga kompatibel di semua versi TypeScript tanpa error TS2578.
+ */
+function addMediaQueryListener(
+  mql: MediaQueryList,
+  handler: (ev: MediaQueryListEvent) => void,
+): () => void {
+  // Modern API — semua browser modern support
+  if (typeof mql.addEventListener === "function") {
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }
+
+  // Legacy fallback — Safari < 14, iOS < 14, Chrome < 39
+  // Type assertion aman karena kita sudah cek keberadaan method-nya
+  const legacyMql = mql as MediaQueryList & {
+    addListener?: (cb: (ev: MediaQueryListEvent) => void) => void;
+    removeListener?: (cb: (ev: MediaQueryListEvent) => void) => void;
+  };
+
+  if (typeof legacyMql.addListener === "function") {
+    legacyMql.addListener(handler);
+    return () => {
+      if (typeof legacyMql.removeListener === "function") {
+        legacyMql.removeListener(handler);
+      }
+    };
+  }
+
+  // Tidak ada listener support sama sekali → no-op cleanup
+  return () => {
+    /* no-op */
+  };
+}
+
+// =====================================================
+// HOOK — apply preferences saat login
+// =====================================================
+/**
+ * Apply theme (light/dark/system) + language ke <html> tag.
+ *
+ * Dipanggil di YuditCloud setelah login berhasil.
+ *
+ * Flow:
+ * 1. Instant apply dari localStorage (untuk theme & language)
+ * 2. Fetch /profile/ untuk sinkronisasi dengan DB
+ * 3. Kalau beda → apply theme baru
+ * 4. Listen system preference change kalau theme = "system"
+ */
 export function useApplyPreferences(): void {
   const isAuthenticated = useYudit((s) => s.isAuthenticated);
 
-  // Instant apply dari localStorage
+  // ---- Instant apply dari localStorage ----
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const cachedTheme = localStorage.getItem(THEME_KEY);
       if (cachedTheme) applyTheme(cachedTheme);
+
       const cachedLang = localStorage.getItem(LANGUAGE_KEY);
       if (cachedLang) applyLanguage(cachedLang);
     } catch {
-      /* ignore */
+      // ignore
     }
   }, [isAuthenticated]);
 
-  // Sync dengan DB setelah login
+  // ---- Sync dengan DB setelah login ----
   useEffect(() => {
     if (!isAuthenticated) return;
+
     let cancelled = false;
     (async () => {
       try {
         const profile = await getProfile();
         if (cancelled) return;
 
-        const dbTheme = isValidTheme(profile.theme) ? profile.theme : "system";
+        // ⭐ Validasi + apply
+        const dbTheme = isValidTheme(profile.theme)
+          ? profile.theme
+          : "system";
+
+        // Hanya apply kalau BEDA dengan localStorage (hindari flicker)
         const cachedTheme = getCurrentTheme();
         if (dbTheme !== cachedTheme) {
           applyTheme(dbTheme);
         }
+
+        // Language — hardcode "id" karena app hanya Indonesia
         applyLanguage("id");
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) return;
+        // Silent — jangan ganggu UX kalau fetch profile gagal
       }
     })();
+
     return () => {
       cancelled = true;
     };
   }, [isAuthenticated]);
 
-  // Listen system preference change
+  // ---- Listen system preference change ----
   useEffect(() => {
     if (typeof window === "undefined") return;
+
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
+
     const handleChange = () => {
       try {
         const cachedTheme = localStorage.getItem(THEME_KEY);
-        if (cachedTheme === "system") applyTheme("system");
+        if (cachedTheme === "system") {
+          applyTheme("system");
+        }
       } catch {
-        /* ignore */
+        // ignore
       }
     };
-    if (mql.addEventListener) {
-      mql.addEventListener("change", handleChange);
-      return () => mql.removeEventListener("change", handleChange);
-    }
-    // @ts-expect-error old Safari
-    mql.addListener(handleChange);
-    // @ts-expect-error old Safari
-    return () => mql.removeListener(handleChange);
+
+    // ⭐ Pakai helper yang kompatibel dengan semua versi TypeScript
+    const cleanup = addMediaQueryListener(mql, handleChange);
+    return cleanup;
   }, []);
 }
