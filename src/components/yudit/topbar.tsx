@@ -3,7 +3,11 @@
 
 import { useState } from "react";
 import {
-  Menu, FolderPlus, Upload, ChevronRight, User as UserIcon,
+  Menu,
+  FolderPlus,
+  Upload,
+  ChevronRight,
+  User as UserIcon,
 } from "lucide-react";
 import { useYudit, canManageWorkspace } from "@/lib/yudit/store";
 import type { ViewKey } from "@/lib/yudit/types";
@@ -28,6 +32,8 @@ export function Topbar() {
   const showConfirm = useYudit((s) => s.showConfirm);
   const drives = useYudit((s) => s.drives);
   const user = useYudit((s) => s.user);
+
+  // ⭐ FIX: sekarang store sudah punya property ini
   const currentFolderId = useYudit((s) => s.currentFolderId);
   const setCurrentFolderId = useYudit((s) => s.setCurrentFolderId);
   const fetchFolders = useYudit((s) => s.fetchFolders);
@@ -35,7 +41,6 @@ export function Topbar() {
   const isManager = canManageWorkspace(user);
   const isProfileView = currentView === "profile";
 
-  // ⭐ Modal state
   const [folderModalOpen, setFolderModalOpen] = useState(false);
 
   const triggerUpload = () => {
@@ -52,14 +57,13 @@ export function Topbar() {
     input.multiple = true;
     input.onchange = () => {
       if (input.files) {
-        // ⭐ Pass currentFolderId agar file masuk ke folder aktif
+        // ⭐ Pass currentFolderId (2 argumen — signature sudah benar di store baru)
         uploadFiles(Array.from(input.files), currentFolderId);
       }
     };
     input.click();
   };
 
-  // ⭐ FIX: buka modal, bukan redirect
   const handleNewFolder = () => {
     if (!isManager) {
       showConfirm(
@@ -112,7 +116,7 @@ export function Topbar() {
           </nav>
 
           <div className="flex shrink-0 items-center gap-2">
-            {!isProfileView && isManager && (
+            {!isProfileView && (
               <>
                 <button
                   onClick={handleNewFolder}
@@ -159,7 +163,6 @@ export function Topbar() {
         </div>
       </header>
 
-      {/* ⭐ CREATE FOLDER MODAL */}
       <CreateFolderModal
         open={folderModalOpen}
         parentId={currentFolderId}
