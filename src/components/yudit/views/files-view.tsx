@@ -1,6 +1,7 @@
+// src/components/yudit/views/files-view.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -9,11 +10,16 @@ import {
   RefreshCw,
   X,
   Inbox,
+  Folder,
+  ChevronRight,
+  Loader2,
+  Trash2,
 } from "lucide-react";
 import {
   useYudit,
   categoryCounts,
   availableYears,
+  canManageWorkspace,
 } from "@/lib/yudit/store";
 import {
   CATEGORY_META,
@@ -25,6 +31,9 @@ import type { FileItem, Filters } from "@/lib/yudit/types";
 import { FileRow } from "../ui/file-row";
 import { Dropzone } from "../ui/dropzone";
 import { cn } from "@/lib/utils";
+
+// ⭐ NEW — Folder types
+import type { FolderItem, BreadcrumbItem } from "@/lib/api/folders";
 
 export function FilesView() {
   const files = useYudit((s) => s.files);
@@ -39,6 +48,18 @@ export function FilesView() {
   const filterPanelOpen = useYudit((s) => s.filterPanelOpen);
   const setFilterPanelOpen = useYudit((s) => s.setFilterPanelOpen);
   const setCategoryManagerOpen = useYudit((s) => s.setCategoryManagerOpen);
+
+  // ⭐ NEW — Folder state
+  const currentFolderId = useYudit((s) => s.currentFolderId);
+  const folderBreadcrumb = useYudit((s) => s.folderBreadcrumb);
+  const fetchFolders = useYudit((s) => s.fetchFolders);
+  const filesLoading = useYudit((s) => s.filesLoading);
+
+  // ⭐ Auto-fetch folder list saat masuk FilesView pertama kali
+  useEffect(() => {
+    fetchFolders(currentFolderId).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentFolderId]);
 
   const counts = useMemo(() => categoryCounts(files), [files]);
   const years = useMemo(() => availableYears(files), [files]);
@@ -87,13 +108,18 @@ export function FilesView() {
     <div className="y-anim-fade">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-[var(--y-text)]">My Files</h1>
+          <h1 className="text-xl font-bold text-[var(--y-text)]">
+            {currentFolderId ? "Folder Contents" : "My Files"}
+          </h1>
           <p className="text-[13px] text-[var(--y-text-dim)]">
             {filtered.length} file{filtered.length !== 1 && "s"}
             {currentCategory !== "all" && ` • ${currentCategory}`}
           </p>
         </div>
       </div>
+
+      {/* ⭐ NEW — Breadcrumb (hanya tampil kalau di dalam folder) */}
+      <FolderBreadcrumb />
 
       {/* Search */}
       <div className="relative mb-3">
@@ -177,6 +203,9 @@ export function FilesView() {
         onReset={resetFilters}
       />
 
+      {/* ⭐ NEW — Folder grid (hanya tampil kalau tidak dalam folder kosong) */}
+      <FolderGrid />
+
       <CategoryTabs
         counts={counts}
         current={currentCategory}
@@ -189,7 +218,148 @@ export function FilesView() {
 
       <Dropzone />
 
-      <FileList files={filtered} emptyCategory={currentCategory} />
+      <FileList
+        files={filtered}
+        emptyCategory={currentCategory}
+        loading={filesLoading && files.length === 0}
+        currentFolderId={currentFolderId}
+      />
+    </div>
+  );
+}
+
+/* ============================================================
+   ⭐ FOLDER BREADCRUMB
+   ============================================================ */
+function FolderBreadcrumb() {
+  const currentFolderId = useYudit((s) => s.currentFolderId);
+  const breadcrumb = useYudit((s) => s.folderBreadcrumb);
+  const setCurrentFolderId = useYudit((s) => s.setCurrentFolderId);
+
+  if (!currentFolderId) return null;
+
+  return (
+    <nav
+      aria-label="Breadcrumb"
+      className="mb-4 flex flex-wrap items-center gap-1 overflow-x-auto rounded-xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] px-3 py-2"
+    >
+      <button
+        onClick={() => setCurrentFolderId(null)}
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[12.5px] font-semibold text-[var(--y-primary)] transition-colors hover:bg-[var(--y-bg-hover)]"
+      >
+        <Folder size={13} />
+        My Files
+      </button>
+      {breadcrumb.map((item, idx) => {
+        const isLast = idx === breadcrumb.length - 1;
+        return (
+          <span
+            key={item.id}
+            className="inline-flex shrink-0 items-center gap-1"
+          >
+            <ChevronRight
+              size={13}
+              className="text-[var(--y-text-mute)]"
+            />
+            <button
+              onClick={() => !isLast && setCurrentFolderId(item.id)}
+              disabled={isLast}
+              className={cn(
+                "max-w-[200px] truncate rounded-md px-2 py-1 text-[12.5px] font-semibold transition-colors",
+                isLast
+                  ? "cursor-default text-[var(--y-text)]"
+                  : "text-[var(--y-primary)] hover:bg-[var(--y-bg-hover)]",
+              )}
+              title={item.name}
+            >
+              {item.name}
+            </button>
+          </span>
+        );
+      })}
+    </nav>
+  );
+}
+
+/* ============================================================
+   ⭐ FOLDER GRID
+   ============================================================ */
+function FolderGrid() {
+  const folders = useYudit((s) => s.folders);
+  const foldersLoading = useYudit((s) => s.foldersLoading);
+  const setCurrentFolderId = useYudit((s) => s.setCurrentFolderId);
+  const showConfirm = useYudit((s) => s.showConfirm);
+  const deleteFolderAction = useYudit((s) => s.deleteFolderAction);
+  const user = useYudit((s) => s.user);
+
+  const isManager = canManageWorkspace(user);
+
+  if (foldersLoading && folders.length === 0) {
+    return (
+      <div className="mb-4 flex items-center gap-2 text-[12px] text-[var(--y-text-mute)]">
+        <Loader2 size={13} className="animate-spin" />
+        Memuat folder…
+      </div>
+    );
+  }
+
+  if (folders.length === 0) return null;
+
+  return (
+    <div className="mb-4">
+      <div className="mb-2 flex items-center gap-2">
+        <h3 className="text-[11px] font-bold uppercase tracking-wide text-[var(--y-text-mute)]">
+          Folder ({folders.length})
+        </h3>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+        {folders.map((f) => (
+          <motion.div
+            key={f.id}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="group flex items-center gap-2 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-2.5 transition-all hover:border-[var(--y-primary)] hover:bg-[var(--y-bg-hover)]"
+          >
+            <button
+              onClick={() => setCurrentFolderId(f.id)}
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              title={f.name}
+            >
+              <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[rgba(245,158,11,0.15)]">
+                <Folder size={15} className="text-[var(--y-warn)]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[12.5px] font-semibold text-[var(--y-text)]">
+                  {f.name}
+                </div>
+                <div className="text-[10px] text-[var(--y-text-mute)]">
+                  {f.file_count} file
+                </div>
+              </div>
+            </button>
+            {isManager && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  showConfirm(
+                    `Hapus folder "${f.name}"?`,
+                    f.file_count > 0
+                      ? `Folder masih berisi ${f.file_count} file. Kosongkan folder terlebih dahulu.`
+                      : "Folder akan dihapus permanen.",
+                    async () => {
+                      await deleteFolderAction(f.id);
+                    },
+                  );
+                }}
+                className="grid h-6 w-6 shrink-0 place-items-center rounded text-[var(--y-text-mute)] opacity-0 transition-opacity hover:bg-[rgba(239,68,68,0.15)] hover:text-[var(--y-danger)] group-hover:opacity-100"
+                title="Hapus folder"
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
+          </motion.div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -457,7 +627,6 @@ function ActiveFilters({
 
 /* ============================================================
    CATEGORY TABS
-   ⭐ Dibungkus overflow-x-auto terisolasi agar tidak melebarkan halaman
    ============================================================ */
 function CategoryTabs({
   counts,
@@ -559,10 +728,26 @@ const GRID_COLS_DESKTOP = "44px minmax(0,1fr) 100px 160px 200px";
 function FileList({
   files,
   emptyCategory,
+  loading,
+  currentFolderId,
 }: {
   files: FileItem[];
   emptyCategory: string;
+  loading: boolean;
+  currentFolderId: string | null;
 }) {
+  // ⭐ Loading state
+  if (loading) {
+    return (
+      <div className="grid place-items-center rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] py-16 shadow-sm">
+        <Loader2
+          size={28}
+          className="animate-spin text-[var(--y-primary)]"
+        />
+      </div>
+    );
+  }
+
   if (files.length === 0) {
     return (
       <div className="grid place-items-center rounded-2xl border border-dashed border-[var(--y-border)] bg-[var(--y-bg-elev)] py-16 text-center shadow-sm">
@@ -572,10 +757,14 @@ function FileList({
         <div className="mt-3 text-sm font-semibold text-[var(--y-text-dim)]">
           {emptyCategory !== "all"
             ? `Belum ada file kategori "${emptyCategory}"`
-            : "Belum ada file"}
+            : currentFolderId
+              ? "Folder ini masih kosong"
+              : "Belum ada file"}
         </div>
         <div className="mt-1 text-xs text-[var(--y-text-mute)]">
-          Upload file untuk memulai
+          {currentFolderId
+            ? "Upload file untuk memulai"
+            : "Upload file untuk memulai"}
         </div>
       </div>
     );
@@ -594,7 +783,8 @@ function FileList({
         <div className="text-right">Aksi</div>
       </div>
 
-      <div className="hidden items-center gap-3 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--y-text-mute)] lg:grid"
+      <div
+        className="hidden items-center gap-3 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--y-text-mute)] lg:grid"
         style={{ gridTemplateColumns: GRID_COLS_DESKTOP }}
       >
         <div className="text-center">Tipe</div>
