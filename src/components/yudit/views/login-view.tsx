@@ -28,13 +28,13 @@ export function LoginView() {
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ⭐ State cek akun
+  // Cek akun state
   const [checkEmail, setCheckEmail] = useState("");
   const [checkLoading, setCheckLoading] = useState(false);
   const [checkResult, setCheckResult] = useState<{
     found: boolean;
     accounts: AccountCheckAccount[];
-    emailSent?: boolean;
+    email_sent?: boolean;
     message: string;
   } | null>(null);
 
@@ -105,12 +105,11 @@ export function LoginView() {
     }
   };
 
-  // ⭐ Handle check account
+  // Handle check account
   const handleCheckAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!checkEmail.trim() || checkLoading) return;
 
-    // Validasi format email
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(checkEmail.trim())) {
       toast.error("Format email tidak valid");
       return;
