@@ -1,9 +1,6 @@
 // src/lib/api/auth.ts
 import { api } from "./client";
 
-// =====================================================
-// TYPES
-// =====================================================
 export type UserRole = "owner" | "super_admin" | "member";
 
 export interface ApiUser {
@@ -38,6 +35,22 @@ export interface ChangePasswordPayload {
   new_password: string;
 }
 
+// ⭐ NEW — Account Check
+export interface AccountCheckAccount {
+  username: string;
+  role: UserRole;
+  workspace_owner_email: string | null;
+  role_display: string;
+  role_permission_summary: string;
+}
+
+export interface AccountCheckResponse {
+  found: boolean;
+  accounts: AccountCheckAccount[];
+  email_sent?: boolean;
+  message: string;
+}
+
 // =====================================================
 // AUTH ENDPOINTS
 // =====================================================
@@ -53,10 +66,6 @@ export async function register(
   return data;
 }
 
-/**
- * Ganti password user yang sedang login.
- * Dipakai untuk collaborator baru yang wajib ganti password default (123456).
- */
 export async function changePassword(
   current_password: string,
   new_password: string,
@@ -64,6 +73,17 @@ export async function changePassword(
   const { data } = await api.post<{ message: string }>(
     "/auth/change-password",
     { current_password, new_password },
+  );
+  return data;
+}
+
+// ⭐ NEW — Check account by email
+export async function checkAccount(
+  email: string,
+): Promise<AccountCheckResponse> {
+  const { data } = await api.post<AccountCheckResponse>(
+    "/auth/check-account",
+    { email: email.trim().toLowerCase() },
   );
   return data;
 }
