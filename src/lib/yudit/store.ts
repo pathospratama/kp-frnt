@@ -34,6 +34,15 @@ import {
   ApiError,
 } from "@/lib/api/client";
 
+// ⭐ NEW — import folder API
+import {
+  listFolders,
+  listFilesInFolder,
+  deleteFolder as deleteFolderApi,
+  type FolderItem,
+  type BreadcrumbItem,
+} from "@/lib/api/folders";
+
 // =====================================================
 // TOAST BRIDGE
 // =====================================================
@@ -109,6 +118,12 @@ interface YuditState {
   defaultCategories: catApi.ApiCategory[];
   collaborators: Collaborator[];
 
+  // ⭐ NEW — Folder state
+  currentFolderId: string | null;
+  folders: FolderItem[];
+  folderBreadcrumb: BreadcrumbItem[];
+  foldersLoading: boolean;
+
   conversionOperations: ConversionOperationInfo[];
   conversionUnsupportedOps: UnsupportedOp[];
   conversionJobs: ConversionJob[];
@@ -169,6 +184,12 @@ interface YuditState {
   fetchCategories: () => Promise<void>;
   fetchCollaborators: () => Promise<void>;
 
+  // ⭐ NEW — Folder actions
+  fetchFolders: (parentId?: string | null) => Promise<void>;
+  setCurrentFolderId: (folderId: string | null) => Promise<void>;
+  refreshFolderFiles: () => Promise<void>;
+  deleteFolderAction: (folderId: string) => Promise<void>;
+
   fetchConversionOperations: () => Promise<void>;
   fetchConversionJobs: () => Promise<void>;
   runConversion: (
@@ -181,7 +202,8 @@ interface YuditState {
   refreshQuota: () => Promise<void>;
   removeDrive: (id: string) => Promise<void>;
 
-  uploadFiles: (files: File[]) => Promise<void>;
+  // ⭐ UBAH signature: uploadFiles sekarang terima folderId
+  uploadFiles: (files: File[], folderId?: string | null) => Promise<void>;
   deleteFile: (id: string) => Promise<void>;
   updateFileCategory: (id: string, category: string) => Promise<void>;
 
@@ -253,6 +275,12 @@ export const useYudit = create<YuditState>()(
       customCategories: [],
       defaultCategories: [],
       collaborators: [],
+
+      // ⭐ NEW — Folder initial state
+      currentFolderId: null,
+      folders: [],
+      folderBreadcrumb: [],
+      foldersLoading: false,
 
       conversionOperations: [],
       conversionUnsupportedOps: [],
@@ -442,6 +470,10 @@ export const useYudit = create<YuditState>()(
           conversionOperations: [],
           conversionUnsupportedOps: [],
           conversionJobs: [],
+          // ⭐ Reset folder state
+          currentFolderId: null,
+          folders: [],
+          folderBreadcrumb: [],
           driveAuthError: { email: null, message: null, lastAt: null },
         });
         toast("Logout berhasil", "info");
@@ -481,7 +513,18 @@ export const useYudit = create<YuditState>()(
           return;
         }
 
-        set({ currentView: v, sidebarOpen: false });
+        // ⭐ Reset folder state saat pindah view
+        set({
+          currentView: v,
+          sidebarOpen: false,
+          ...(v !== "files"
+            ? {
+                currentFolderId: null,
+                folders: [],
+                folderBreadcrumb: [],
+              }
+            : {}),
+        });
       },
 
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -496,7 +539,6 @@ export const useYudit = create<YuditState>()(
           set({ files: files as FileItem[], filesLoading: false });
         } catch (e) {
           set({ filesLoading: false });
-          // Silent untuk 401 — sudah di-handle interceptor (logout)
           if (e instanceof ApiError && e.status === 401) return;
           const msg = e instanceof ApiError ? e.detail : "Gagal memuat file";
           toast(msg, "error");
@@ -573,6 +615,100 @@ export const useYudit = create<YuditState>()(
       },
 
       // =====================================================
+      // ⭐ FOLDER ACTIONS
+      // =====================================================
+      fetchFolders: async (parentId) => {
+        set({ foldersLoading: true });
+        try {
+          const targetParent =
+            parentId !== undefined ? parentId : get().currentFolderId;
+          const folders = await listFolders(targetParent ?? null);
+          set({ folders, foldersLoading: false });
+        } catch (e) {
+          set({ foldersLoading: false });
+          if (e instanceof ApiError && e.status === 401) return;
+          const msg = e instanceof ApiError ? e.detail : "Gagal memuat folder";
+          toast(msg, "error");
+        }
+      },
+
+      setCurrentFolderId: async (folderId) => {
+        set({
+          currentFolderId: folderId,
+          // Reset filter/search saat masuk folder agar tidak bingung
+          searchQuery: "",
+          currentCategory: "all",
+          filters: {},
+        });
+
+        // Load file & breadcrumb
+        if (folderId) {
+          try {
+            const res = await listFilesInFolder(folderId);
+            set({
+              files: res.files as FileItem[],
+              folderBreadcrumb: res.breadcrumb,
+            });
+          } catch (e) {
+            const msg = e instanceof ApiError ? e.detail : "Gagal memuat folder";
+            toast(msg, "error");
+            // Fallback: balik ke root
+            set({ currentFolderId: null, folderBreadcrumb: [] });
+            await get().fetchFiles();
+            return;
+          }
+        } else {
+          set({ folderBreadcrumb: [] });
+          await get().fetchFiles();
+        }
+
+        // Load subfolder di dalam folder ini
+        await get().fetchFolders(folderId);
+      },
+
+      refreshFolderFiles: async () => {
+        const fid = get().currentFolderId;
+        if (fid) {
+          try {
+            const res = await listFilesInFolder(fid);
+            set({
+              files: res.files as FileItem[],
+              folderBreadcrumb: res.breadcrumb,
+            });
+          } catch (e) {
+            if (e instanceof ApiError && e.status === 401) return;
+            const msg =
+              e instanceof ApiError ? e.detail : "Gagal refresh file";
+            toast(msg, "error");
+          }
+        } else {
+          await get().fetchFiles();
+        }
+        await get().fetchFolders(fid);
+      },
+
+      deleteFolderAction: async (folderId) => {
+        if (!canManageWorkspace(get().user)) {
+          toast("Hanya owner atau super admin yang bisa hapus folder", "error");
+          return;
+        }
+        try {
+          await deleteFolderApi(folderId);
+          toast("Folder dihapus", "success");
+          // Kalau folder yang dihapus = current folder → balik ke root
+          if (get().currentFolderId === folderId) {
+            await get().setCurrentFolderId(null);
+          } else {
+            await get().fetchFolders(get().currentFolderId);
+          }
+        } catch (e) {
+          const msg =
+            e instanceof ApiError ? e.detail : "Gagal menghapus folder";
+          toast(msg, "error");
+        }
+      },
+
+      // =====================================================
       // CONVERSION
       // =====================================================
       fetchConversionOperations: async () => {
@@ -624,7 +760,7 @@ export const useYudit = create<YuditState>()(
             params,
           });
           toast(`Konversi berhasil: ${result.result_file.name}`, "success");
-          await get().fetchFiles();
+          await get().refreshFolderFiles();
           await get().fetchConversionJobs();
           get().refreshPool();
           return result;
@@ -719,26 +855,32 @@ export const useYudit = create<YuditState>()(
       },
 
       // =====================================================
-      // FILES
+      // FILES — ⭐ uploadFiles sekarang terima folderId
       // =====================================================
-      uploadFiles: async (fileList) => {
+      uploadFiles: async (fileList, folderId) => {
         if (fileList.length === 0) return;
 
         const total = fileList.length;
         let done = 0;
 
+        // ⭐ Pakai folderId yang diberikan, atau currentFolderId
+        const targetFolderId =
+          folderId !== undefined ? folderId : get().currentFolderId;
+
         set({
           progress: {
             open: true,
             label: `Mengunggah 0/${total}`,
-            sub: "Menyiapkan…",
+            sub: targetFolderId
+              ? "Uploading ke folder aktif…"
+              : "Menyiapkan…",
             pct: 0,
           },
         });
 
         for (const file of fileList) {
           try {
-            await filesApi.uploadFile(file, undefined, (pct) => {
+            await filesApi.uploadFile(file, targetFolderId, (pct) => {
               const overall = Math.round(((done + pct / 100) / total) * 100);
               set({
                 progress: {
@@ -759,12 +901,8 @@ export const useYudit = create<YuditState>()(
 
         set({ progress: { open: false, label: "", sub: "", pct: null } });
 
-        const { filters, currentCategory, searchQuery } = get();
-        await get().fetchFiles({
-          category: currentCategory !== "all" ? currentCategory : undefined,
-          search: searchQuery || undefined,
-          ...filters,
-        });
+        // ⭐ Refresh folder context (kalau di dalam folder) atau root files
+        await get().refreshFolderFiles();
         get().refreshPool();
       },
 
@@ -774,6 +912,10 @@ export const useYudit = create<YuditState>()(
           set((s) => ({ files: s.files.filter((f) => f.id !== id) }));
           toast("File dihapus", "success");
           get().refreshPool();
+          // ⭐ Refresh folder counts kalau sedang di dalam folder
+          if (get().currentFolderId) {
+            await get().fetchFolders(get().currentFolderId);
+          }
         } catch (e) {
           if (e instanceof ApiError && e.isDriveError) {
             const email = e.driveEmail || "Google Drive";
@@ -820,10 +962,14 @@ export const useYudit = create<YuditState>()(
       },
 
       // =====================================================
-      // FILTERS
+      // FILTERS — ⭐ Sesuaikan dengan folder context
       // =====================================================
       setCategory: (cat) => {
         set({ currentCategory: cat });
+        // ⭐ Hanya fetch dari API kalau TIDAK di dalam folder
+        // (file di folder sudah ter-load semua & difilter di UI)
+        if (get().currentFolderId) return;
+
         const { filters, searchQuery } = get();
         get().fetchFiles({
           category: cat !== "all" ? cat : undefined,
@@ -834,6 +980,9 @@ export const useYudit = create<YuditState>()(
 
       setSearch: (q) => {
         set({ searchQuery: q });
+        // ⭐ Hanya fetch dari API kalau TIDAK di dalam folder
+        if (get().currentFolderId) return;
+
         const { filters, currentCategory } = get();
         get().fetchFiles({
           category: currentCategory !== "all" ? currentCategory : undefined,
@@ -846,6 +995,9 @@ export const useYudit = create<YuditState>()(
 
       setFilters: (f) => {
         set({ filters: f });
+        // ⭐ Hanya fetch dari API kalau TIDAK di dalam folder
+        if (get().currentFolderId) return;
+
         const { currentCategory, searchQuery } = get();
         get().fetchFiles({
           category: currentCategory !== "all" ? currentCategory : undefined,
@@ -856,6 +1008,8 @@ export const useYudit = create<YuditState>()(
 
       resetFilters: () => {
         set({ filters: {} });
+        if (get().currentFolderId) return;
+
         const { currentCategory, searchQuery } = get();
         get().fetchFiles({
           category: currentCategory !== "all" ? currentCategory : undefined,
@@ -1071,6 +1225,8 @@ export const useYudit = create<YuditState>()(
         currentView: s.currentView,
         filters: s.filters,
         expandedMonthly: s.expandedMonthly,
+        // ⭐ Persist currentFolderId? TIDAK — reset setiap reload
+        // untuk hindari state stale kalau folder sudah dihapus
       }),
     },
   ),
