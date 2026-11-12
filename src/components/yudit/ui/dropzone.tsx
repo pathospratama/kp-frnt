@@ -1,3 +1,4 @@
+// src/components/yudit/ui/dropzone.tsx
 "use client";
 
 import { useRef, useState, type DragEvent } from "react";
@@ -11,10 +12,12 @@ export function Dropzone() {
   const [dragover, setDragover] = useState(false);
   const uploadFiles = useYudit((s) => s.uploadFiles);
   const drives = useYudit((s) => s.drives);
+  const currentFolderId = useYudit((s) => s.currentFolderId); // ⭐
 
   const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    uploadFiles(Array.from(files));
+    // ⭐ Pass currentFolderId
+    uploadFiles(Array.from(files), currentFolderId);
   };
 
   const onDrop = (e: DragEvent) => {
@@ -67,7 +70,9 @@ export function Dropzone() {
           Drop file di sini atau klik untuk upload
         </div>
         <div className="mt-1 text-xs text-[var(--y-text-mute)]">
-          File otomatis dikategorikan &amp; masuk folder bulanan
+          {currentFolderId
+            ? "File akan masuk ke folder yang sedang dibuka"
+            : "File otomatis dikategorikan & masuk folder bulanan"}
           {drives.length === 0 && " • Hubungkan Drive dulu"}
         </div>
         <input
