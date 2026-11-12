@@ -12,11 +12,12 @@ export function Dropzone() {
   const [dragover, setDragover] = useState(false);
   const uploadFiles = useYudit((s) => s.uploadFiles);
   const drives = useYudit((s) => s.drives);
-  const currentFolderId = useYudit((s) => s.currentFolderId); // ⭐
+  // ⭐ FIX: sekarang store baru punya currentFolderId
+  const currentFolderId = useYudit((s) => s.currentFolderId);
 
   const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    // ⭐ Pass currentFolderId
+    // ⭐ Pass currentFolderId (2 argumen — signature baru)
     uploadFiles(Array.from(files), currentFolderId);
   };
 
@@ -60,7 +61,8 @@ export function Dropzone() {
             dragover ? "scale-110" : "group-hover:scale-105",
           )}
           style={{
-            background: "linear-gradient(135deg, rgba(239,68,68,0.1), rgba(249,115,22,0.1))",
+            background:
+              "linear-gradient(135deg, rgba(239,68,68,0.1), rgba(249,115,22,0.1))",
             boxShadow: "0 8px 24px rgba(239,68,68,0.15)",
           }}
         >
