@@ -1,6 +1,9 @@
 // src/lib/api/folders.ts
 import { api } from "./client";
 
+// =====================================================
+// TYPES
+// =====================================================
 export interface FolderItem {
   id: string;
   user_id: string;
@@ -23,10 +26,15 @@ export interface CreateFolderPayload {
 export interface FolderFilesResponse {
   folder: FolderItem;
   breadcrumb: BreadcrumbItem[];
-  files: any[]; // FileItem[] — diimport dari store
+  files: any[]; // FileItem[] — di-cast di caller
 }
 
-export async function listFolders(parentId?: string | null): Promise<FolderItem[]> {
+// =====================================================
+// LIST
+// =====================================================
+export async function listFolders(
+  parentId?: string | null,
+): Promise<FolderItem[]> {
   const { data } = await api.get<FolderItem[]>("/folders/", {
     params: parentId ? { parent_id: parentId } : {},
   });
@@ -41,6 +49,9 @@ export async function getFolder(folderId: string): Promise<{
   return data;
 }
 
+// =====================================================
+// CREATE
+// =====================================================
 export async function createFolder(
   payload: CreateFolderPayload,
 ): Promise<{ message: string; folder: FolderItem }> {
@@ -48,6 +59,9 @@ export async function createFolder(
   return data;
 }
 
+// =====================================================
+// UPDATE / RENAME
+// =====================================================
 export async function renameFolder(
   folderId: string,
   name: string,
@@ -56,12 +70,19 @@ export async function renameFolder(
   return data;
 }
 
-export async function deleteFolder(folderId: string): Promise<{ message: string }> {
+// =====================================================
+// DELETE
+// =====================================================
+export async function deleteFolder(
+  folderId: string,
+): Promise<{ message: string }> {
   const { data } = await api.delete(`/folders/${folderId}`);
   return data;
 }
 
-// ⭐ Get files in specific folder
+// =====================================================
+// ⭐ List files in folder
+// =====================================================
 export async function listFilesInFolder(
   folderId: string,
 ): Promise<FolderFilesResponse> {
