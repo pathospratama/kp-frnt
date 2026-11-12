@@ -1,6 +1,9 @@
 // src/lib/api/auth.ts
 import { api } from "./client";
 
+// =====================================================
+// TYPES
+// =====================================================
 export type UserRole = "owner" | "super_admin" | "member";
 
 export interface ApiUser {
@@ -35,7 +38,7 @@ export interface ChangePasswordPayload {
   new_password: string;
 }
 
-// ⭐ NEW — Account Check
+// ⭐ Account Check
 export interface AccountCheckAccount {
   username: string;
   role: UserRole;
@@ -47,6 +50,7 @@ export interface AccountCheckAccount {
 export interface AccountCheckResponse {
   found: boolean;
   accounts: AccountCheckAccount[];
+  // ⭐ FIX: pakai snake_case konsisten dengan backend response
   email_sent?: boolean;
   message: string;
 }
@@ -77,7 +81,7 @@ export async function changePassword(
   return data;
 }
 
-// ⭐ NEW — Check account by email
+// ⭐ Check account by email
 export async function checkAccount(
   email: string,
 ): Promise<AccountCheckResponse> {
