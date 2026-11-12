@@ -74,6 +74,7 @@ export interface UploadResponse {
   monthly_folder: string;
   category: string | null;
   file_type: string | null;
+  folder_id?: string | null; // ⭐ NEW — backend mengembalikan folder_id
 }
 
 // =====================================================
@@ -112,7 +113,7 @@ export async function listMonthlyFolders(): Promise<MonthlyFolder[]> {
 }
 
 // =====================================================
-// UPLOAD (⭐ timeout 10 menit untuk file besar)
+// UPLOAD (⭐ signature sudah support folderId)
 // =====================================================
 export async function uploadFile(
   file: File,
@@ -130,7 +131,7 @@ export async function uploadFile(
         onProgress(Math.round((e.loaded / e.total) * 100));
       }
     },
-    // ⭐ 10 menit untuk upload file besar (default 120s terlalu pendek)
+    // ⭐ 10 menit untuk upload file besar
     timeout: 10 * 60 * 1000,
   });
   return data;
@@ -191,16 +192,13 @@ export async function fetchFileBlob(
   try {
     const res = await api.get(`/files/${fileId}/${mode}`, {
       responseType: "blob",
-      // Untuk download file besar, naikkan timeout
       timeout: mode === "download" ? 5 * 60 * 1000 : 2 * 60 * 1000,
     });
     return res.data;
   } catch (error: any) {
-    // Kalau sudah ApiError (dari interceptor), lempar langsung
     if (error instanceof ApiError) {
       throw error;
     }
-    // Fallback: kalau axios error mentah lolos
     throw new ApiError(
       error?.response?.status || 0,
       "Gagal mengunduh file dari server",
@@ -214,4 +212,26 @@ export function getFilePreviewUrl(fileId: string): string {
 
 export function getFileDownloadUrl(fileId: string): string {
   return getApiUrl(`/files/${fileId}/download`);
+}
+
+// ⭐ NEW — List file di folder tertentu (dengan breadcrumb)
+export interface FolderFilesResponse {
+  folder: {
+    id: string;
+    user_id: string;
+    parent_id: string | null;
+    name: string;
+    created_at: string;
+  };
+  breadcrumb: { id: string; name: string }[];
+  files: ApiFile[];
+}
+
+export async function listFilesInFolder(
+  folderId: string,
+): Promise<FolderFilesResponse> {
+  const { data } = await api.get<FolderFilesResponse>(
+    `/files/in-folder/${folderId}`,
+  );
+  return data;
 }
