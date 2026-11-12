@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Loader2,
   Trash2,
+  Info,
 } from "lucide-react";
 import {
   useYudit,
@@ -32,7 +33,7 @@ import { FileRow } from "../ui/file-row";
 import { Dropzone } from "../ui/dropzone";
 import { cn } from "@/lib/utils";
 
-// ⭐ NEW — Folder types
+// Folder types
 import type { FolderItem, BreadcrumbItem } from "@/lib/api/folders";
 
 export function FilesView() {
@@ -49,13 +50,10 @@ export function FilesView() {
   const setFilterPanelOpen = useYudit((s) => s.setFilterPanelOpen);
   const setCategoryManagerOpen = useYudit((s) => s.setCategoryManagerOpen);
 
-  // ⭐ NEW — Folder state
   const currentFolderId = useYudit((s) => s.currentFolderId);
-  const folderBreadcrumb = useYudit((s) => s.folderBreadcrumb);
   const fetchFolders = useYudit((s) => s.fetchFolders);
   const filesLoading = useYudit((s) => s.filesLoading);
 
-  // ⭐ Auto-fetch folder list saat masuk FilesView pertama kali
   useEffect(() => {
     fetchFolders(currentFolderId).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -118,7 +116,7 @@ export function FilesView() {
         </div>
       </div>
 
-      {/* ⭐ NEW — Breadcrumb (hanya tampil kalau di dalam folder) */}
+      {/* Breadcrumb */}
       <FolderBreadcrumb />
 
       {/* Search */}
@@ -203,7 +201,10 @@ export function FilesView() {
         onReset={resetFilters}
       />
 
-      {/* ⭐ NEW — Folder grid (hanya tampil kalau tidak dalam folder kosong) */}
+      {/* Info banner folder virtual */}
+      <FolderInfoBanner />
+
+      {/* Folder grid */}
       <FolderGrid />
 
       <CategoryTabs
@@ -229,7 +230,29 @@ export function FilesView() {
 }
 
 /* ============================================================
-   ⭐ FOLDER BREADCRUMB
+   FOLDER INFO BANNER
+   ============================================================ */
+function FolderInfoBanner() {
+  const folders = useYudit((s) => s.folders);
+  if (folders.length === 0) return null;
+
+  return (
+    <div className="mb-2 flex items-start gap-2 rounded-lg border border-[var(--y-border-soft)] bg-[rgba(99,102,241,0.05)] px-3 py-2 text-[11px] leading-relaxed text-[var(--y-text-dim)]">
+      <Info size={13} className="mt-0.5 shrink-0 text-[var(--y-primary)]" />
+      <div>
+        <b className="text-[var(--y-text)]">
+          Folder adalah pengelompokan virtual.
+        </b>{" "}
+        File yang Anda upload ke folder akan tersimpan di{" "}
+        <b>folder bulanan Google Drive</b> (contoh: &quot;November-2026&quot;),
+        tetapi tetap terlihat di folder ini pada UI.
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   FOLDER BREADCRUMB
    ============================================================ */
 function FolderBreadcrumb() {
   const currentFolderId = useYudit((s) => s.currentFolderId);
@@ -257,10 +280,7 @@ function FolderBreadcrumb() {
             key={item.id}
             className="inline-flex shrink-0 items-center gap-1"
           >
-            <ChevronRight
-              size={13}
-              className="text-[var(--y-text-mute)]"
-            />
+            <ChevronRight size={13} className="text-[var(--y-text-mute)]" />
             <button
               onClick={() => !isLast && setCurrentFolderId(item.id)}
               disabled={isLast}
@@ -282,7 +302,7 @@ function FolderBreadcrumb() {
 }
 
 /* ============================================================
-   ⭐ FOLDER GRID
+   FOLDER GRID
    ============================================================ */
 function FolderGrid() {
   const folders = useYudit((s) => s.folders);
@@ -719,7 +739,7 @@ function CatTab({
 }
 
 /* ============================================================
-   FILE LIST — ⭐ header & row GRID IDENTIK di setiap breakpoint
+   FILE LIST
    ============================================================ */
 const GRID_COLS_MOBILE = "44px minmax(0,1fr) auto";
 const GRID_COLS_TABLET = "44px minmax(0,1fr) 80px 140px";
@@ -736,14 +756,10 @@ function FileList({
   loading: boolean;
   currentFolderId: string | null;
 }) {
-  // ⭐ Loading state
   if (loading) {
     return (
       <div className="grid place-items-center rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] py-16 shadow-sm">
-        <Loader2
-          size={28}
-          className="animate-spin text-[var(--y-primary)]"
-        />
+        <Loader2 size={28} className="animate-spin text-[var(--y-primary)]" />
       </div>
     );
   }
@@ -762,9 +778,7 @@ function FileList({
               : "Belum ada file"}
         </div>
         <div className="mt-1 text-xs text-[var(--y-text-mute)]">
-          {currentFolderId
-            ? "Upload file untuk memulai"
-            : "Upload file untuk memulai"}
+          Upload file untuk memulai
         </div>
       </div>
     );
@@ -772,7 +786,6 @@ function FileList({
 
   return (
     <div className="rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-2 shadow-sm">
-      {/* ⭐ Header — grid identik dengan FileRow */}
       <div
         className="hidden items-center gap-3 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--y-text-mute)] sm:grid"
         style={{ gridTemplateColumns: GRID_COLS_TABLET }}
@@ -803,7 +816,6 @@ function FileList({
   );
 }
 
-/* Ekspor konstanta grid agar FileRow memakai nilai yang sama persis */
 export const FILE_GRID = {
   mobile: GRID_COLS_MOBILE,
   tablet: GRID_COLS_TABLET,

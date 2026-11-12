@@ -34,7 +34,7 @@ import {
   ApiError,
 } from "@/lib/api/client";
 
-// ⭐ NEW — import folder API
+// ⭐ Folder API
 import {
   listFolders,
   listFilesInFolder,
@@ -87,16 +87,11 @@ export function defaultViewForRole(user: User | null): ViewKey {
 }
 
 // =====================================================
-// CAN ACCESS VIEW — semua role bisa akses semua view
-// (member = read-only untuk view tertentu, dikontrol via UI)
+// CAN ACCESS VIEW
 // =====================================================
 export function canAccessView(user: User | null, view: ViewKey): boolean {
   if (!user) return false;
-
-  // Menu khusus member
   if (view === "my-tasks") return isMember(user);
-
-  // Profile, drives, collaborators, files, dll — semua role boleh
   return true;
 }
 
@@ -118,7 +113,7 @@ interface YuditState {
   defaultCategories: catApi.ApiCategory[];
   collaborators: Collaborator[];
 
-  // ⭐ NEW — Folder state
+  // Folder state
   currentFolderId: string | null;
   folders: FolderItem[];
   folderBreadcrumb: BreadcrumbItem[];
@@ -184,7 +179,7 @@ interface YuditState {
   fetchCategories: () => Promise<void>;
   fetchCollaborators: () => Promise<void>;
 
-  // ⭐ NEW — Folder actions
+  // Folder actions
   fetchFolders: (parentId?: string | null) => Promise<void>;
   setCurrentFolderId: (folderId: string | null) => Promise<void>;
   refreshFolderFiles: () => Promise<void>;
@@ -202,7 +197,6 @@ interface YuditState {
   refreshQuota: () => Promise<void>;
   removeDrive: (id: string) => Promise<void>;
 
-  // ⭐ UBAH signature: uploadFiles sekarang terima folderId
   uploadFiles: (files: File[], folderId?: string | null) => Promise<void>;
   deleteFile: (id: string) => Promise<void>;
   updateFileCategory: (id: string, category: string) => Promise<void>;
@@ -276,7 +270,6 @@ export const useYudit = create<YuditState>()(
       defaultCategories: [],
       collaborators: [],
 
-      // ⭐ NEW — Folder initial state
       currentFolderId: null,
       folders: [],
       folderBreadcrumb: [],
@@ -470,7 +463,6 @@ export const useYudit = create<YuditState>()(
           conversionOperations: [],
           conversionUnsupportedOps: [],
           conversionJobs: [],
-          // ⭐ Reset folder state
           currentFolderId: null,
           folders: [],
           folderBreadcrumb: [],
@@ -513,7 +505,6 @@ export const useYudit = create<YuditState>()(
           return;
         }
 
-        // ⭐ Reset folder state saat pindah view
         set({
           currentView: v,
           sidebarOpen: false,
@@ -530,7 +521,7 @@ export const useYudit = create<YuditState>()(
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
       // =====================================================
-      // DATA FETCH — accessible untuk semua role
+      // DATA FETCH
       // =====================================================
       fetchFiles: async (params) => {
         set({ filesLoading: true });
@@ -615,7 +606,7 @@ export const useYudit = create<YuditState>()(
       },
 
       // =====================================================
-      // ⭐ FOLDER ACTIONS
+      // FOLDER ACTIONS
       // =====================================================
       fetchFolders: async (parentId) => {
         set({ foldersLoading: true });
@@ -635,13 +626,11 @@ export const useYudit = create<YuditState>()(
       setCurrentFolderId: async (folderId) => {
         set({
           currentFolderId: folderId,
-          // Reset filter/search saat masuk folder agar tidak bingung
           searchQuery: "",
           currentCategory: "all",
           filters: {},
         });
 
-        // Load file & breadcrumb
         if (folderId) {
           try {
             const res = await listFilesInFolder(folderId);
@@ -650,9 +639,9 @@ export const useYudit = create<YuditState>()(
               folderBreadcrumb: res.breadcrumb,
             });
           } catch (e) {
-            const msg = e instanceof ApiError ? e.detail : "Gagal memuat folder";
+            const msg =
+              e instanceof ApiError ? e.detail : "Gagal memuat folder";
             toast(msg, "error");
-            // Fallback: balik ke root
             set({ currentFolderId: null, folderBreadcrumb: [] });
             await get().fetchFiles();
             return;
@@ -662,7 +651,6 @@ export const useYudit = create<YuditState>()(
           await get().fetchFiles();
         }
 
-        // Load subfolder di dalam folder ini
         await get().fetchFolders(folderId);
       },
 
@@ -695,7 +683,6 @@ export const useYudit = create<YuditState>()(
         try {
           await deleteFolderApi(folderId);
           toast("Folder dihapus", "success");
-          // Kalau folder yang dihapus = current folder → balik ke root
           if (get().currentFolderId === folderId) {
             await get().setCurrentFolderId(null);
           } else {
@@ -855,15 +842,15 @@ export const useYudit = create<YuditState>()(
       },
 
       // =====================================================
-      // FILES — ⭐ uploadFiles sekarang terima folderId
+      // FILES — uploadFiles dengan handling Drive auth error
       // =====================================================
       uploadFiles: async (fileList, folderId) => {
         if (fileList.length === 0) return;
 
         const total = fileList.length;
         let done = 0;
+        let driveAuthErrorCount = 0;
 
-        // ⭐ Pakai folderId yang diberikan, atau currentFolderId
         const targetFolderId =
           folderId !== undefined ? folderId : get().currentFolderId;
 
@@ -871,9 +858,7 @@ export const useYudit = create<YuditState>()(
           progress: {
             open: true,
             label: `Mengunggah 0/${total}`,
-            sub: targetFolderId
-              ? "Uploading ke folder aktif…"
-              : "Menyiapkan…",
+            sub: targetFolderId ? "Uploading ke folder aktif…" : "Menyiapkan…",
             pct: 0,
           },
         });
@@ -894,6 +879,41 @@ export const useYudit = create<YuditState>()(
             done++;
             toast(`"${file.name}" berhasil diunggah`, "success");
           } catch (e) {
+            // Handle Drive auth error spesifik
+            if (e instanceof ApiError && e.status === 401) {
+              driveAuthErrorCount++;
+              const detail = e.detail || "";
+              const isDriveError =
+                e.isDriveError ||
+                detail.toLowerCase().includes("drive") ||
+                detail.toLowerCase().includes("reconnect") ||
+                detail.toLowerCase().includes("revoked");
+
+              if (isDriveError) {
+  // Pakai toast wrapper standard (bukan .error)
+  toast(
+    `"${file.name}" gagal upload: Google Drive perlu di-reconnect. ` +
+      `Buka menu "Google Drive" untuk memperbaiki.`,
+    "error",
+  );
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("yudit:drive-auth-error", {
+        detail: {
+          email: e.driveEmail,
+          driveId: e.driveId,
+          message: e.detail,
+        },
+      }),
+    );
+  }
+} else {
+  toast(`Gagal upload "${file.name}": ${detail}`, "error");
+}
+              continue;
+            }
+
             const msg = e instanceof ApiError ? e.detail : "Upload gagal";
             toast(`Gagal upload "${file.name}": ${msg}`, "error");
           }
@@ -901,9 +921,14 @@ export const useYudit = create<YuditState>()(
 
         set({ progress: { open: false, label: "", sub: "", pct: null } });
 
-        // ⭐ Refresh folder context (kalau di dalam folder) atau root files
-        await get().refreshFolderFiles();
-        get().refreshPool();
+        if (done > 0) {
+          await get().refreshFolderFiles();
+          get().refreshPool();
+        }
+
+        if (done === 0 && driveAuthErrorCount > 0) {
+          // Banner sudah muncul via event listener
+        }
       },
 
       deleteFile: async (id) => {
@@ -912,7 +937,6 @@ export const useYudit = create<YuditState>()(
           set((s) => ({ files: s.files.filter((f) => f.id !== id) }));
           toast("File dihapus", "success");
           get().refreshPool();
-          // ⭐ Refresh folder counts kalau sedang di dalam folder
           if (get().currentFolderId) {
             await get().fetchFolders(get().currentFolderId);
           }
@@ -962,12 +986,10 @@ export const useYudit = create<YuditState>()(
       },
 
       // =====================================================
-      // FILTERS — ⭐ Sesuaikan dengan folder context
+      // FILTERS
       // =====================================================
       setCategory: (cat) => {
         set({ currentCategory: cat });
-        // ⭐ Hanya fetch dari API kalau TIDAK di dalam folder
-        // (file di folder sudah ter-load semua & difilter di UI)
         if (get().currentFolderId) return;
 
         const { filters, searchQuery } = get();
@@ -980,7 +1002,6 @@ export const useYudit = create<YuditState>()(
 
       setSearch: (q) => {
         set({ searchQuery: q });
-        // ⭐ Hanya fetch dari API kalau TIDAK di dalam folder
         if (get().currentFolderId) return;
 
         const { filters, currentCategory } = get();
@@ -995,7 +1016,6 @@ export const useYudit = create<YuditState>()(
 
       setFilters: (f) => {
         set({ filters: f });
-        // ⭐ Hanya fetch dari API kalau TIDAK di dalam folder
         if (get().currentFolderId) return;
 
         const { currentCategory, searchQuery } = get();
@@ -1225,8 +1245,6 @@ export const useYudit = create<YuditState>()(
         currentView: s.currentView,
         filters: s.filters,
         expandedMonthly: s.expandedMonthly,
-        // ⭐ Persist currentFolderId? TIDAK — reset setiap reload
-        // untuk hindari state stale kalau folder sudah dihapus
       }),
     },
   ),
