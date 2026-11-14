@@ -1,36 +1,54 @@
 // src/components/yudit/transfer/transfer-view.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, Copy, Crown,
-  Loader2, Mail, RefreshCw, ShieldAlert, Users, UserPlus, XCircle,
-  ChevronDown, ChevronUp, Clock, X, KeyRound, Upload, Info,
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  Crown,
+  Loader2,
+  Mail,
+  RefreshCw,
+  ShieldAlert,
+  UserPlus,
+  XCircle,
+  KeyRound,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  cancelTransfer, executeTransfer, listTransfers, requestTransfer,
-  verifyTransfer, type Transfer, type TransferStatus,
+  cancelTransfer,
+  executeTransfer,
+  listTransfers,
+  requestTransfer,
+  verifyTransfer,
+  type Transfer,
+  type TransferStatus,
 } from "@/lib/api/transfer";
 import { useYudit, isOwner } from "@/lib/yudit/store";
 import { formatDateTime } from "@/lib/yudit/utils";
-import { cn } from "@/lib/utils";
 
 type Step = "intro" | "target" | "verify" | "confirm" | "executing" | "done";
 
 export function TransferView() {
   const router = useRouter();
+
   const user = useYudit((s) => s.user);
+  const isAuthenticated = useYudit((s) => s.isAuthenticated);
+  const bootstrapAuth = useYudit((s) => s.bootstrapAuth);
+
+  // ⭐ Auth gate — supaya tidak redirect sebelum bootstrap selesai
+  const [bootstrapped, setBootstrapped] = useState(false);
 
   const [transfers, setTransfers] = useState<Transfer[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [activeTransfer, setActiveTransfer] = useState<Transfer | null>(null);
   const [step, setStep] = useState<Step>("intro");
 
-  // Form states
   const [targetEmail, setTargetEmail] = useState("");
   const [reason, setReason] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
@@ -38,24 +56,85 @@ export function TransferView() {
 
   const isOwnerUser = isOwner(user);
 
+  // ============================================
+  // 1. Bootstrap auth dari localStorage SEBELUM cek permission
+  // ============================================
   useEffect(() => {
-    if (!isOwnerUser) {
-      router.push("/");
-      return;
-    }
-    loadTransfers();
-  }, [isOwnerUser, router]);
+    bootstrapAuth();
+    setBootstrapped(true);
+  }, [bootstrapAuth]);
 
-  const loadTransfers = async () => {
+  // ============================================
+  // 2. Setelah bootstrapped, baru cek permission & load data
+  // ============================================
+  const loadTransfers = useCallback(async () => {
     setLoading(true);
     try {
       const res = await listTransfers();
       setTransfers(res);
-    } catch (e: any) {
-      toast.error(e?.detail || "Gagal memuat riwayat transfer");
+    } catch (e: unknown) {
+      const err = e as { detail?: string };
+      toast.error(err?.detail || "Gagal memuat riwayat transfer");
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    if (!bootstrapped) return;
+
+    if (!isAuthenticated) {
+      router.replace("/");
+      return;
+    }
+
+    if (!isOwnerUser) {
+      router.replace("/");
+      return;
+    }
+
+    void loadTransfers();
+  }, [bootstrapped, isAuthenticated, isOwnerUser, router, loadTransfers]);
+
+  // ============================================
+  // 3. Loading screen selagi menunggu auth
+  // ============================================
+  if (!bootstrapped) {
+    return (
+      <div className="yudit-ambient grid min-h-screen place-items-center">
+        <div className="flex items-center gap-2 text-sm text-[var(--y-text-dim)]">
+          <Loader2
+            size={22}
+            className="animate-spin text-[var(--y-primary)]"
+          />
+          Memeriksa sesi…
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !isOwnerUser) {
+    return (
+      <div className="yudit-ambient grid min-h-screen place-items-center">
+        <div className="flex items-center gap-2 text-sm text-[var(--y-text-dim)]">
+          <Loader2
+            size={22}
+            className="animate-spin text-[var(--y-primary)]"
+          />
+          Mengarahkan…
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================
+  // HANDLERS
+  // ============================================
+  const loadTransferDetail = async (id: string): Promise<Transfer> => {
+    const all = await listTransfers();
+    const t = all.find((x) => x.id === id);
+    if (!t) throw new Error("Transfer tidak ditemukan");
+    return t;
   };
 
   const handleRequest = async () => {
@@ -70,24 +149,20 @@ export function TransferView() {
         reason: reason.trim() || undefined,
       });
       toast.success(
-        `Kode verifikasi dikirim ke ${user?.email}. Berlaku ${res.message.includes("30 menit") ? "30 menit" : "sementara"}.`,
+        `Kode verifikasi dikirim ke ${user?.email}. Berlaku ${
+          res.message.includes("30 menit") ? "30 menit" : "sementara"
+        }.`,
         { duration: 8000 },
       );
       const detail = await loadTransferDetail(res.transfer_id);
       setActiveTransfer(detail);
       setStep("verify");
-    } catch (e: any) {
-      toast.error(e?.detail || "Gagal membuat request");
+    } catch (e: unknown) {
+      const err = e as { detail?: string };
+      toast.error(err?.detail || "Gagal membuat request");
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const loadTransferDetail = async (id: string): Promise<Transfer> => {
-    const all = await listTransfers();
-    const t = all.find((x) => x.id === id);
-    if (!t) throw new Error("Transfer tidak ditemukan");
-    return t;
   };
 
   const handleVerify = async () => {
@@ -98,7 +173,7 @@ export function TransferView() {
     }
     setSubmitting(true);
     try {
-      const res = await verifyTransfer({
+      await verifyTransfer({
         transfer_id: activeTransfer.id,
         code: verificationCode.trim(),
       });
@@ -106,8 +181,9 @@ export function TransferView() {
       setStep("confirm");
       const updated = await loadTransferDetail(activeTransfer.id);
       setActiveTransfer(updated);
-    } catch (e: any) {
-      toast.error(e?.detail || "Kode salah", { duration: 6000 });
+    } catch (e: unknown) {
+      const err = e as { detail?: string };
+      toast.error(err?.detail || "Kode salah", { duration: 6000 });
     } finally {
       setSubmitting(false);
     }
@@ -117,12 +193,15 @@ export function TransferView() {
     if (!activeTransfer) return;
     setStep("executing");
     try {
-      const res = await executeTransfer(activeTransfer.id);
+      await executeTransfer(activeTransfer.id);
       toast.success("Workspace berhasil dipindahkan!");
       setStep("done");
       await loadTransfers();
-    } catch (e: any) {
-      toast.error(e?.detail || "Gagal eksekusi transfer", { duration: 8000 });
+    } catch (e: unknown) {
+      const err = e as { detail?: string };
+      toast.error(err?.detail || "Gagal eksekusi transfer", {
+        duration: 8000,
+      });
       setStep("confirm");
     }
   };
@@ -138,17 +217,10 @@ export function TransferView() {
       setActiveTransfer(null);
       setStep("intro");
       await loadTransfers();
-    } catch (e: any) {
-      toast.error(e?.detail || "Gagal cancel");
+    } catch (e: unknown) {
+      const err = e as { detail?: string };
+      toast.error(err?.detail || "Gagal cancel");
     }
-  };
-
-  const resetFlow = () => {
-    setStep("intro");
-    setActiveTransfer(null);
-    setTargetEmail("");
-    setReason("");
-    setVerificationCode("");
   };
 
   // ============================================
@@ -176,6 +248,7 @@ export function TransferView() {
       <main className="flex-1 overflow-y-auto">
         <div className="y-container mx-auto max-w-2xl py-6">
           <AnimatePresence mode="wait">
+            {/* ============ INTRO ============ */}
             {step === "intro" && (
               <motion.div
                 key="intro"
@@ -198,6 +271,13 @@ export function TransferView() {
                     Mulai Transfer
                   </button>
                 </div>
+
+                {loading && transfers.length === 0 && (
+                  <div className="flex items-center justify-center py-6 text-xs text-[var(--y-text-mute)]">
+                    <Loader2 size={14} className="mr-2 animate-spin" />
+                    Memuat riwayat…
+                  </div>
+                )}
 
                 {transfers.length > 0 && (
                   <div className="rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-5">
@@ -223,6 +303,7 @@ export function TransferView() {
               </motion.div>
             )}
 
+            {/* ============ TARGET EMAIL ============ */}
             {step === "target" && (
               <motion.div
                 key="target"
@@ -288,6 +369,7 @@ export function TransferView() {
               </motion.div>
             )}
 
+            {/* ============ VERIFY CODE ============ */}
             {step === "verify" && activeTransfer && (
               <motion.div
                 key="verify"
@@ -297,7 +379,10 @@ export function TransferView() {
                 className="rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-5"
               >
                 <div className="mb-4 flex items-start gap-3 rounded-xl border border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.08)] p-3">
-                  <ShieldAlert size={18} className="mt-0.5 shrink-0 text-[var(--y-warning)]" />
+                  <ShieldAlert
+                    size={18}
+                    className="mt-0.5 shrink-0 text-[var(--y-warning)]"
+                  />
                   <div className="text-[12px] leading-relaxed text-[var(--y-warning)]">
                     <b>Kode dikirim ke email {user?.email}</b>
                     <br />
@@ -314,7 +399,9 @@ export function TransferView() {
                   inputMode="numeric"
                   value={verificationCode}
                   onChange={(e) =>
-                    setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                    setVerificationCode(
+                      e.target.value.replace(/\D/g, "").slice(0, 6),
+                    )
                   }
                   placeholder="000000"
                   maxLength={6}
@@ -324,10 +411,13 @@ export function TransferView() {
 
                 <div className="mt-1.5 flex items-center justify-between text-[11px]">
                   <span className="text-[var(--y-text-mute)]">
-                    Sisa percobaan: {activeTransfer.max_attempts - activeTransfer.code_attempts}
+                    Sisa percobaan:{" "}
+                    {activeTransfer.max_attempts -
+                      activeTransfer.code_attempts}
                   </span>
                   <span className="text-[var(--y-text-mute)]">
-                    Kode berlaku s/d {formatDateTime(activeTransfer.code_expires_at)}
+                    Kode berlaku s/d{" "}
+                    {formatDateTime(activeTransfer.code_expires_at)}
                   </span>
                 </div>
 
@@ -355,6 +445,7 @@ export function TransferView() {
               </motion.div>
             )}
 
+            {/* ============ CONFIRM ============ */}
             {step === "confirm" && activeTransfer && (
               <motion.div
                 key="confirm"
@@ -373,29 +464,48 @@ export function TransferView() {
                       Konfirmasi Terakhir
                     </h2>
                     <p className="mt-1 text-[12px] text-[var(--y-text-dim)]">
-                      Tindakan ini akan memindahkan SELURUH workspace Anda ke user
-                      lain. Anda akan menjadi MEMBER di workspace tersebut.
+                      Tindakan ini akan memindahkan SELURUH workspace Anda ke
+                      user lain. Anda akan menjadi MEMBER di workspace
+                      tersebut.
                     </p>
                   </div>
                 </div>
 
                 <div className="mb-4 space-y-1.5 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] p-4 text-[12.5px]">
-                  <Row label="Dari" value={`${activeTransfer.from_owner_username} (${activeTransfer.from_owner_email})`} />
-                  <Row label="Ke" value={`${activeTransfer.to_owner_username} (${activeTransfer.to_owner_email})`} />
+                  <Row
+                    label="Dari"
+                    value={`${activeTransfer.from_owner_username} (${activeTransfer.from_owner_email})`}
+                  />
+                  <Row
+                    label="Ke"
+                    value={`${activeTransfer.to_owner_username} (${activeTransfer.to_owner_email})`}
+                  />
                   {activeTransfer.snapshot_before && (
                     <>
                       <div className="my-2 border-t border-[var(--y-border-soft)]" />
                       <Row
                         label="Drive"
-                        value={`${(activeTransfer.snapshot_before as any).drives || 0} akun Google Drive`}
+                        value={`${
+                          (activeTransfer.snapshot_before as {
+                            drives?: number;
+                          }).drives || 0
+                        } akun Google Drive`}
                       />
                       <Row
                         label="Collaborator"
-                        value={`${(activeTransfer.snapshot_before as any).collaborators || 0} user`}
+                        value={`${
+                          (activeTransfer.snapshot_before as {
+                            collaborators?: number;
+                          }).collaborators || 0
+                        } user`}
                       />
                       <Row
                         label="File"
-                        value={`${(activeTransfer.snapshot_before as any).files || 0} file`}
+                        value={`${
+                          (activeTransfer.snapshot_before as {
+                            files?: number;
+                          }).files || 0
+                        } file`}
                       />
                     </>
                   )}
@@ -420,6 +530,7 @@ export function TransferView() {
               </motion.div>
             )}
 
+            {/* ============ EXECUTING ============ */}
             {step === "executing" && (
               <motion.div
                 key="executing"
@@ -435,12 +546,13 @@ export function TransferView() {
                   Memindahkan Workspace…
                 </h2>
                 <p className="mt-1 text-[12px] text-[var(--y-text-dim)]">
-                  Mohon tunggu, sedang memindahkan file, drive, dan collaborator.
-                  Jangan tutup halaman ini.
+                  Mohon tunggu, sedang memindahkan file, drive, dan
+                  collaborator. Jangan tutup halaman ini.
                 </p>
               </motion.div>
             )}
 
+            {/* ============ DONE ============ */}
             {step === "done" && (
               <motion.div
                 key="done"
@@ -485,7 +597,10 @@ function InfoCard() {
   return (
     <div className="rounded-2xl border border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.05)] p-5">
       <div className="mb-3 flex items-start gap-3">
-        <AlertTriangle size={22} className="mt-0.5 shrink-0 text-[var(--y-warning)]" />
+        <AlertTriangle
+          size={22}
+          className="mt-0.5 shrink-0 text-[var(--y-warning)]"
+        />
         <div>
           <h2 className="text-base font-bold text-[var(--y-text)]">
             Perhatian
@@ -500,16 +615,29 @@ function InfoCard() {
 
       <div className="space-y-1.5 text-[12px] text-[var(--y-text-dim)]">
         <div className="flex items-start gap-2">
-          <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-[var(--y-success)]" />
-          <span>Kode verifikasi dikirim ke email <b>Anda</b> (bukan ke target)</span>
+          <CheckCircle2
+            size={14}
+            className="mt-0.5 shrink-0 text-[var(--y-success)]"
+          />
+          <span>
+            Kode verifikasi dikirim ke email <b>Anda</b> (bukan ke target)
+          </span>
         </div>
         <div className="flex items-start gap-2">
-          <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-[var(--y-success)]" />
+          <CheckCircle2
+            size={14}
+            className="mt-0.5 shrink-0 text-[var(--y-success)]"
+          />
           <span>Target harus sudah terdaftar sebagai OWNER di aplikasi</span>
         </div>
         <div className="flex items-start gap-2">
-          <XCircle size={14} className="mt-0.5 shrink-0 text-[var(--y-danger)]" />
-          <span>Tindakan ini <b>tidak bisa dibatalkan</b> setelah eksekusi</span>
+          <XCircle
+            size={14}
+            className="mt-0.5 shrink-0 text-[var(--y-danger)]"
+          />
+          <span>
+            Tindakan ini <b>tidak bisa dibatalkan</b> setelah eksekusi
+          </span>
         </div>
       </div>
     </div>
@@ -523,17 +651,19 @@ function TransferRow({
   transfer: Transfer;
   onResume: (t: Transfer) => void;
 }) {
-  const statusMeta: Record<TransferStatus, { label: string; color: string }> = {
-    pending: { label: "Menunggu Verifikasi", color: "#f59e0b" },
-    verified: { label: "Siap Dieksekusi", color: "#22d3ee" },
-    executing: { label: "Sedang Diproses", color: "#6366f1" },
-    completed: { label: "Selesai", color: "#10b981" },
-    failed: { label: "Gagal", color: "#ef4444" },
-    cancelled: { label: "Dibatalkan", color: "#94a3b8" },
-    expired: { label: "Kadaluarsa", color: "#94a3b8" },
-  };
+  const statusMeta: Record<TransferStatus, { label: string; color: string }> =
+    {
+      pending: { label: "Menunggu Verifikasi", color: "#f59e0b" },
+      verified: { label: "Siap Dieksekusi", color: "#22d3ee" },
+      executing: { label: "Sedang Diproses", color: "#6366f1" },
+      completed: { label: "Selesai", color: "#10b981" },
+      failed: { label: "Gagal", color: "#ef4444" },
+      cancelled: { label: "Dibatalkan", color: "#94a3b8" },
+      expired: { label: "Kadaluarsa", color: "#94a3b8" },
+    };
   const meta = statusMeta[transfer.status] || statusMeta.pending;
-  const canResume = transfer.status === "pending" || transfer.status === "verified";
+  const canResume =
+    transfer.status === "pending" || transfer.status === "verified";
 
   return (
     <div className="flex items-center gap-3 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] p-3">

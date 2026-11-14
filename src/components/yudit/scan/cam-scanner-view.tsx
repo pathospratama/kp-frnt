@@ -58,6 +58,8 @@ interface LocalPage {
   uploadProgress: number;
 }
 
+type Facing = "environment" | "user";
+
 // =====================================================
 // MAIN
 // =====================================================
@@ -84,18 +86,16 @@ export function CamScannerView() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const startingRef = useRef(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [cameraFacing, setCameraFacing] = useState<"environment" | "user">(
-    "environment",
-  );
+  const [cameraFacing, setCameraFacing] = useState<Facing>("environment");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // =====================================================
   // STOP CAMERA — safe, idempotent
   // =====================================================
   const stopCamera = useCallback(() => {
-    // Stop via ref (paling reliable)
     if (streamRef.current) {
       try {
         streamRef.current.getTracks().forEach((t) => t.stop());
@@ -104,127 +104,190 @@ export function CamScannerView() {
       }
       streamRef.current = null;
     }
-    // Fallback: stop via video element
     const v = videoRef.current;
-    if (v && v.srcObject) {
+    if (v) {
       try {
-        const stream = v.srcObject as MediaStream;
-        stream.getTracks().forEach((t) => t.stop());
+        v.pause();
       } catch {
         /* ignore */
       }
-      v.srcObject = null;
+      try {
+        v.srcObject = null;
+      } catch {
+        /* ignore */
+      }
+      v.onloadedmetadata = null;
     }
     setCameraActive(false);
   }, []);
 
   // =====================================================
-  // START CAMERA — robust with detailed error handling
+  // START CAMERA — robust
+  // Terima param `facing` agar switch kamera bekerja akurat
   // =====================================================
-  const startCamera = useCallback(async () => {
-    setCameraError(null);
+  const startCamera = useCallback(
+    async (facing?: Facing) => {
+      if (startingRef.current) return;
+      startingRef.current = true;
 
-    // 1. Cek secure context (HTTPS atau localhost)
-    if (typeof window !== "undefined" && !window.isSecureContext) {
-      const msg =
-        "Kamera hanya bisa diakses via HTTPS. " +
-        "Gunakan Impor dari Galeri sebagai alternatif, " +
-        "atau hubungi admin untuk mengaktifkan HTTPS.";
-      setCameraError(msg);
-      toast.error(msg, { duration: 8000 });
-      return;
-    }
+      setCameraError(null);
+      const facingMode = facing ?? cameraFacing;
 
-    // 2. Cek navigator.mediaDevices support
-    if (
-      typeof navigator === "undefined" ||
-      !navigator.mediaDevices ||
-      typeof navigator.mediaDevices.getUserMedia !== "function"
-    ) {
-      const msg =
-        "Browser tidak mendukung akses kamera. " +
-        "Coba update browser (Chrome/Safari/Firefox terbaru), " +
-        "atau gunakan Impor dari Galeri.";
-      setCameraError(msg);
-      toast.error(msg, { duration: 8000 });
-      return;
-    }
+      // 1. Cek secure context
+      if (typeof window !== "undefined" && !window.isSecureContext) {
+        const msg =
+          "Kamera hanya bisa diakses via HTTPS. " +
+          "Gunakan Impor dari Galeri sebagai alternatif, " +
+          "atau hubungi admin untuk mengaktifkan HTTPS.";
+        setCameraError(msg);
+        toast.error(msg, { duration: 8000 });
+        startingRef.current = false;
+        return;
+      }
 
-    // 3. Coba buka kamera
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: cameraFacing },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-        audio: false,
-      });
-      streamRef.current = stream;
+      // 2. Cek navigator.mediaDevices
+      if (
+        typeof navigator === "undefined" ||
+        !navigator.mediaDevices ||
+        typeof navigator.mediaDevices.getUserMedia !== "function"
+      ) {
+        const msg =
+          "Browser tidak mendukung akses kamera. " +
+          "Coba update browser (Chrome/Safari/Firefox terbaru), " +
+          "atau gunakan Impor dari Galeri.";
+        setCameraError(msg);
+        toast.error(msg, { duration: 8000 });
+        startingRef.current = false;
+        return;
+      }
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        try {
-          await videoRef.current.play();
-        } catch {
-          // Beberapa browser melempar error kalau play() dipanggil sebelum
-          // metadata video siap. Ini aman diabaikan — video akan auto-play
-          // setelah metadata loaded.
+      // 3. Bersihkan stream lama
+      stopCamera();
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+          audio: false,
+        });
+
+        // ⭐ PENTING: JANGAN set videoRef.current.srcObject di sini.
+        // Saat cameraActive masih false, elemen <video> belum di-render,
+        // sehingga videoRef.current = null.
+        //
+        // Cukup:
+        //   1) simpan stream di ref
+        //   2) set cameraActive = true
+        //   3) biarkan useEffect di bawah yang memasang srcObject
+        //      setelah <video> benar-benar mount.
+        streamRef.current = stream;
+        setCameraActive(true);
+      } catch (err: unknown) {
+        // Bersihkan stream parsial kalau ada
+        if (streamRef.current) {
+          try {
+            streamRef.current.getTracks().forEach((t) => t.stop());
+          } catch {
+            /* ignore */
+          }
+          streamRef.current = null;
         }
+        setCameraActive(false);
+
+        const errorName =
+          typeof err === "object" && err !== null && "name" in err
+            ? String((err as { name: unknown }).name)
+            : "";
+
+        let msg = "Gagal membuka kamera";
+
+        switch (errorName) {
+          case "NotAllowedError":
+          case "PermissionDeniedError":
+            msg =
+              "Izin kamera ditolak. Buka ikon 🔒 di address bar → " +
+              "cari 'Kamera' → ubah ke 'Izinkan' → refresh halaman.";
+            break;
+          case "NotFoundError":
+          case "DevicesNotFoundError":
+            msg =
+              "Tidak ada kamera ditemukan di perangkat ini. " +
+              "Gunakan Impor dari Galeri sebagai alternatif.";
+            break;
+          case "NotReadableError":
+          case "TrackStartError":
+            msg =
+              "Kamera sedang dipakai aplikasi lain (Zoom/Meet/Teams, dsb). " +
+              "Tutup aplikasi tersebut lalu coba lagi.";
+            break;
+          case "OverconstrainedError":
+            msg =
+              "Kamera tidak mendukung resolusi yang diminta. " +
+              "Coba ganti kamera depan/belakang atau refresh halaman.";
+            break;
+          case "SecurityError":
+            msg =
+              "Akses kamera diblokir oleh kebijakan keamanan server. " +
+              "Hubungi admin untuk mengizinkan Permissions-Policy header.";
+            break;
+          case "AbortError":
+            msg = "Akses kamera dibatalkan. Coba lagi.";
+            break;
+          default:
+            msg =
+              (err instanceof Error && err.message) ||
+              "Gagal membuka kamera. Coba Impor dari Galeri.";
+        }
+
+        setCameraError(msg);
+        toast.error(msg, { duration: 8000 });
+      } finally {
+        startingRef.current = false;
       }
-      setCameraActive(true);
-    } catch (err: unknown) {
-      setCameraActive(false);
+    },
+    [cameraFacing, stopCamera],
+  );
 
-      const errorName =
-        typeof err === "object" && err !== null && "name" in err
-          ? String((err as { name: unknown }).name)
-          : "";
+  // =====================================================
+  // ⭐ ATTACH STREAM SETELAH <video> MOUNT
+  // useEffect berjalan setelah DOM commit, jadi saat
+  // cameraActive menjadi true, <video> sudah ada di DOM.
+  // =====================================================
+  useEffect(() => {
+    if (!cameraActive) return;
 
-      let msg = "Gagal membuka kamera";
+    const video = videoRef.current;
+    const stream = streamRef.current;
 
-      switch (errorName) {
-        case "NotAllowedError":
-        case "PermissionDeniedError":
-          msg =
-            "Izin kamera ditolak. Buka ikon 🔒 di address bar → " +
-            "cari 'Kamera' → ubah ke 'Izinkan' → refresh halaman.";
-          break;
-        case "NotFoundError":
-        case "DevicesNotFoundError":
-          msg =
-            "Tidak ada kamera ditemukan di perangkat ini. " +
-            "Gunakan Impor dari Galeri sebagai alternatif.";
-          break;
-        case "NotReadableError":
-        case "TrackStartError":
-          msg =
-            "Kamera sedang dipakai aplikasi lain (Zoom/Meet/Teams, dsb). " +
-            "Tutup aplikasi tersebut lalu coba lagi.";
-          break;
-        case "OverconstrainedError":
-          msg =
-            "Kamera tidak mendukung resolusi yang diminta. " +
-            "Coba ganti kamera depan/belakang atau refresh halaman.";
-          break;
-        case "SecurityError":
-          msg =
-            "Akses kamera diblokir oleh kebijakan keamanan server. " +
-            "Hubungi admin untuk mengizinkan Permissions-Policy header.";
-          break;
-        case "AbortError":
-          msg = "Akses kamera dibatalkan. Coba lagi.";
-          break;
-        default:
-          msg =
-            (err instanceof Error && err.message) ||
-            "Gagal membuka kamera. Coba Impor dari Galeri.";
-      }
+    if (!video || !stream) return;
 
-      setCameraError(msg);
-      toast.error(msg, { duration: 8000 });
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
     }
-  }, [cameraFacing]);
+
+    const playVideo = () => {
+      video.play().catch((err: unknown) => {
+        const name = err instanceof Error ? err.name : "";
+        // AbortError normal saat switch/unmount — jangan spam log
+        if (name !== "AbortError") {
+          console.warn("[scan] video.play gagal:", err);
+        }
+      });
+    };
+
+    if (video.readyState >= 1) {
+      playVideo();
+    } else {
+      video.onloadedmetadata = playVideo;
+    }
+
+    return () => {
+      video.onloadedmetadata = null;
+    };
+  }, [cameraActive]);
 
   // =====================================================
   // CLEANUP ON UNMOUNT
@@ -241,25 +304,38 @@ export function CamScannerView() {
   const capturePhoto = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
+
     if (!video || !canvas) return;
+
+    if (!streamRef.current) {
+      toast.error("Kamera belum aktif. Tunggu sebentar lalu coba lagi.");
+      return;
+    }
+
     if (video.readyState < 2) {
       toast.error("Kamera belum siap. Tunggu sebentar lalu coba lagi.");
       return;
     }
+
     const w = video.videoWidth;
     const h = video.videoHeight;
+
     if (w === 0 || h === 0) {
       toast.error("Kamera belum menampilkan gambar. Coba lagi.");
       return;
     }
+
     canvas.width = w;
     canvas.height = h;
+
     const ctx = canvas.getContext("2d");
     if (!ctx) {
       toast.error("Browser tidak mendukung Canvas 2D");
       return;
     }
+
     ctx.drawImage(video, 0, 0, w, h);
+
     canvas.toBlob(
       (blob) => {
         if (!blob) {
@@ -344,7 +420,6 @@ export function CamScannerView() {
         () => toast.error("Gagal hapus di server"),
       );
     }
-    // Revoke object URL untuk mencegah memory leak
     if (page?.url) {
       URL.revokeObjectURL(page.url);
     }
@@ -374,11 +449,10 @@ export function CamScannerView() {
       toast.error("Belum ada halaman");
       return;
     }
-    // Stop kamera untuk hemat resource
+
     stopCamera();
     setStep("edit");
 
-    // Create session if not yet
     if (!session) {
       try {
         const s = await createScanSession({
@@ -389,7 +463,6 @@ export function CamScannerView() {
         });
         setSession(s);
         toast.success("Sesi scan dibuat");
-        // Upload all pages
         await uploadAllPages(s.id);
       } catch (err: unknown) {
         const msg =
@@ -404,7 +477,6 @@ export function CamScannerView() {
   };
 
   const uploadAllPages = async (sessionId: string) => {
-    // Snapshot pages saat ini untuk upload
     const currentPages = pages;
     for (let i = 0; i < currentPages.length; i++) {
       const p = currentPages[i];
@@ -471,14 +543,13 @@ export function CamScannerView() {
         }
       }
     }
-    // Reorder kalau urutan berbeda
     const serverOrderIds = pages
       .filter((p) => p.serverPage)
       .map((p) => p.serverPage!.id);
     try {
       await reorderScanPages(session.id, serverOrderIds);
     } catch {
-      // silent — mungkin sudah benar
+      /* silent — mungkin sudah benar */
     }
   };
 
@@ -508,7 +579,6 @@ export function CamScannerView() {
         `Scan berhasil! Disimpan ke ${res.drive_email} (${res.folder_name})`,
         { duration: 6000 },
       );
-      // Cleanup object URLs sebelum redirect
       pages.forEach((p) => {
         if (p.url) URL.revokeObjectURL(p.url);
       });
@@ -524,7 +594,7 @@ export function CamScannerView() {
   };
 
   // =====================================================
-  // CLEANUP ON CLOSE
+  // CLOSE
   // =====================================================
   const handleClose = () => {
     pages.forEach((p) => {
@@ -556,7 +626,6 @@ export function CamScannerView() {
             </h1>
           </div>
 
-          {/* Step indicator */}
           <div className="ml-4 hidden items-center gap-1.5 text-[11px] font-semibold sm:flex">
             <StepBadge active={step === "capture"} done={step !== "capture"}>
               1. Capture
@@ -594,18 +663,24 @@ export function CamScannerView() {
               cameraError={cameraError}
               cameraFacing={cameraFacing}
               pages={pages}
-              startCamera={startCamera}
+              startCamera={() => {
+                void startCamera();
+              }}
               stopCamera={stopCamera}
               capturePhoto={capturePhoto}
               onImport={() => fileInputRef.current?.click()}
               onSwitchCamera={() => {
+                const next: Facing =
+                  cameraFacing === "environment" ? "user" : "environment";
+
+                // 1) stop stream lama
                 stopCamera();
-                setCameraFacing((f) =>
-                  f === "environment" ? "user" : "environment",
-                );
-                // Delay kecil sebelum restart untuk allow hardware release
+                // 2) simpan facing baru ke state (untuk UI label)
+                setCameraFacing(next);
+                // 3) delay kecil agar hardware kamera lama release,
+                //    lalu start dengan facing baru secara eksplisit
                 setTimeout(() => {
-                  void startCamera();
+                  void startCamera(next);
                 }, 300);
               }}
               onRemovePage={removePage}
@@ -719,7 +794,7 @@ function CaptureStep({
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   cameraActive: boolean;
   cameraError: string | null;
-  cameraFacing: "environment" | "user";
+  cameraFacing: Facing;
   pages: LocalPage[];
   startCamera: () => void;
   stopCamera: () => void;
@@ -729,6 +804,10 @@ function CaptureStep({
   onRemovePage: (id: string) => void;
   onNext: () => void;
 }) {
+  // stopCamera tidak dipakai langsung di sini (dipanggil dari parent),
+  // tapi tetap diterima untuk konsistensi API
+  void stopCamera;
+
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
       {/* CAMERA / PREVIEW */}
@@ -800,7 +879,7 @@ function CaptureStep({
             )}
           </div>
 
-          {/* Camera controls */}
+          {/* Camera controls — muncul HANYA kalau cameraActive */}
           {cameraActive && (
             <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2">
               <button
@@ -820,7 +899,9 @@ function CaptureStep({
               <button
                 onClick={onSwitchCamera}
                 className="grid h-10 w-10 place-items-center rounded-full bg-black/60 text-white backdrop-blur-sm hover:bg-black/80"
-                title={`Ganti ke ${cameraFacing === "environment" ? "depan" : "belakang"}`}
+                title={`Ganti ke ${
+                  cameraFacing === "environment" ? "depan" : "belakang"
+                }`}
               >
                 <RefreshCw size={16} />
               </button>
@@ -1185,6 +1266,9 @@ function ProcessStep({
   onBack: () => void;
   onProcess: () => void;
 }) {
+  // `session` disediakan untuk kompatibilitas, tidak dipakai langsung
+  void session;
+
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <div className="rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-5">
