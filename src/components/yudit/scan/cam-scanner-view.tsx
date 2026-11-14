@@ -3,14 +3,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Camera,
   X,
   Check,
   RotateCw,
   RotateCcw,
-  Crop,
   Trash2,
   ArrowLeft,
   ArrowRight,
@@ -18,17 +17,11 @@ import {
   Loader2,
   Upload,
   ChevronDown,
-  FileText,
   Image as ImageIcon,
-  ArrowUp,
-  ArrowDown,
-  GripVertical,
   Wand2,
   AlertCircle,
   Save,
   ScanLine,
-  Zap,
-  Crop as CropIcon,
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -81,13 +74,16 @@ export function CamScannerView() {
   // Settings
   const [title, setTitle] = useState("Untitled Scan");
   const [outputFormat, setOutputFormat] = useState<OutputFormat>("pdf");
-  const [pageSize, setPageSize] = useState<"A4" | "A3" | "Letter" | "Legal" | "auto">("A4");
+  const [pageSize, setPageSize] = useState<
+    "A4" | "A3" | "Letter" | "Legal" | "auto"
+  >("A4");
   const [quality, setQuality] = useState(90);
   const [useILovePDF, setUseILovePDF] = useState(false);
 
   // Camera
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraFacing, setCameraFacing] = useState<"environment" | "user">(
@@ -96,10 +92,65 @@ export function CamScannerView() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // =====================================================
-  // INIT CAMERA
+  // STOP CAMERA — safe, idempotent
+  // =====================================================
+  const stopCamera = useCallback(() => {
+    // Stop via ref (paling reliable)
+    if (streamRef.current) {
+      try {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      } catch {
+        /* ignore */
+      }
+      streamRef.current = null;
+    }
+    // Fallback: stop via video element
+    const v = videoRef.current;
+    if (v && v.srcObject) {
+      try {
+        const stream = v.srcObject as MediaStream;
+        stream.getTracks().forEach((t) => t.stop());
+      } catch {
+        /* ignore */
+      }
+      v.srcObject = null;
+    }
+    setCameraActive(false);
+  }, []);
+
+  // =====================================================
+  // START CAMERA — robust with detailed error handling
   // =====================================================
   const startCamera = useCallback(async () => {
     setCameraError(null);
+
+    // 1. Cek secure context (HTTPS atau localhost)
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      const msg =
+        "Kamera hanya bisa diakses via HTTPS. " +
+        "Gunakan Impor dari Galeri sebagai alternatif, " +
+        "atau hubungi admin untuk mengaktifkan HTTPS.";
+      setCameraError(msg);
+      toast.error(msg, { duration: 8000 });
+      return;
+    }
+
+    // 2. Cek navigator.mediaDevices support
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices ||
+      typeof navigator.mediaDevices.getUserMedia !== "function"
+    ) {
+      const msg =
+        "Browser tidak mendukung akses kamera. " +
+        "Coba update browser (Chrome/Safari/Firefox terbaru), " +
+        "atau gunakan Impor dari Galeri.";
+      setCameraError(msg);
+      toast.error(msg, { duration: 8000 });
+      return;
+    }
+
+    // 3. Coba buka kamera
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -109,34 +160,75 @@ export function CamScannerView() {
         },
         audio: false,
       });
+      streamRef.current = stream;
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        try {
+          await videoRef.current.play();
+        } catch {
+          // Beberapa browser melempar error kalau play() dipanggil sebelum
+          // metadata video siap. Ini aman diabaikan — video akan auto-play
+          // setelah metadata loaded.
+        }
       }
       setCameraActive(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setCameraActive(false);
-      const msg =
-        err?.name === "NotAllowedError"
-          ? "Izin kamera ditolak. Berikan izin di browser."
-          : err?.name === "NotFoundError"
-            ? "Tidak ada kamera ditemukan."
-            : err?.message || "Gagal membuka kamera";
+
+      const errorName =
+        typeof err === "object" && err !== null && "name" in err
+          ? String((err as { name: unknown }).name)
+          : "";
+
+      let msg = "Gagal membuka kamera";
+
+      switch (errorName) {
+        case "NotAllowedError":
+        case "PermissionDeniedError":
+          msg =
+            "Izin kamera ditolak. Buka ikon 🔒 di address bar → " +
+            "cari 'Kamera' → ubah ke 'Izinkan' → refresh halaman.";
+          break;
+        case "NotFoundError":
+        case "DevicesNotFoundError":
+          msg =
+            "Tidak ada kamera ditemukan di perangkat ini. " +
+            "Gunakan Impor dari Galeri sebagai alternatif.";
+          break;
+        case "NotReadableError":
+        case "TrackStartError":
+          msg =
+            "Kamera sedang dipakai aplikasi lain (Zoom/Meet/Teams, dsb). " +
+            "Tutup aplikasi tersebut lalu coba lagi.";
+          break;
+        case "OverconstrainedError":
+          msg =
+            "Kamera tidak mendukung resolusi yang diminta. " +
+            "Coba ganti kamera depan/belakang atau refresh halaman.";
+          break;
+        case "SecurityError":
+          msg =
+            "Akses kamera diblokir oleh kebijakan keamanan server. " +
+            "Hubungi admin untuk mengizinkan Permissions-Policy header.";
+          break;
+        case "AbortError":
+          msg = "Akses kamera dibatalkan. Coba lagi.";
+          break;
+        default:
+          msg =
+            (err instanceof Error && err.message) ||
+            "Gagal membuka kamera. Coba Impor dari Galeri.";
+      }
+
       setCameraError(msg);
-      toast.error(msg);
+      toast.error(msg, { duration: 8000 });
     }
   }, [cameraFacing]);
 
-  const stopCamera = useCallback(() => {
-    const v = videoRef.current;
-    if (v && v.srcObject) {
-      const stream = v.srcObject as MediaStream;
-      stream.getTracks().forEach((t) => t.stop());
-      v.srcObject = null;
-    }
-    setCameraActive(false);
-  }, []);
-
+  // =====================================================
+  // CLEANUP ON UNMOUNT
+  // =====================================================
   useEffect(() => {
     return () => {
       stopCamera();
@@ -151,19 +243,29 @@ export function CamScannerView() {
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
     if (video.readyState < 2) {
-      toast.error("Kamera belum siap. Coba lagi.");
+      toast.error("Kamera belum siap. Tunggu sebentar lalu coba lagi.");
       return;
     }
     const w = video.videoWidth;
     const h = video.videoHeight;
+    if (w === 0 || h === 0) {
+      toast.error("Kamera belum menampilkan gambar. Coba lagi.");
+      return;
+    }
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) {
+      toast.error("Browser tidak mendukung Canvas 2D");
+      return;
+    }
     ctx.drawImage(video, 0, 0, w, h);
     canvas.toBlob(
       (blob) => {
-        if (!blob) return;
+        if (!blob) {
+          toast.error("Gagal mengambil foto");
+          return;
+        }
         const url = URL.createObjectURL(blob);
         const localPage: LocalPage = {
           id: crypto.randomUUID(),
@@ -187,7 +289,9 @@ export function CamScannerView() {
   // IMPORT FROM FILE
   // =====================================================
   const handleFileImport = (files: FileList | null) => {
-    if (!files) return;
+    if (!files || files.length === 0) return;
+
+    let accepted = 0;
     Array.from(files).forEach((file) => {
       if (!file.type.startsWith("image/")) {
         toast.error(`${file.name} bukan gambar`);
@@ -205,8 +309,12 @@ export function CamScannerView() {
         uploadProgress: 0,
       };
       setPages((prev) => [...prev, localPage]);
+      accepted++;
     });
-    toast.success(`${files.length} gambar diimpor`);
+
+    if (accepted > 0) {
+      toast.success(`${accepted} gambar diimpor`);
+    }
   };
 
   // =====================================================
@@ -236,8 +344,14 @@ export function CamScannerView() {
         () => toast.error("Gagal hapus di server"),
       );
     }
+    // Revoke object URL untuk mencegah memory leak
+    if (page?.url) {
+      URL.revokeObjectURL(page.url);
+    }
     setPages((prev) => prev.filter((p) => p.id !== id));
-    if (activeIdx >= pages.length - 1) setActiveIdx(Math.max(0, pages.length - 2));
+    if (activeIdx >= pages.length - 1) {
+      setActiveIdx(Math.max(0, pages.length - 2));
+    }
   };
 
   const movePage = (id: string, dir: -1 | 1) => {
@@ -260,6 +374,8 @@ export function CamScannerView() {
       toast.error("Belum ada halaman");
       return;
     }
+    // Stop kamera untuk hemat resource
+    stopCamera();
     setStep("edit");
 
     // Create session if not yet
@@ -275,16 +391,23 @@ export function CamScannerView() {
         toast.success("Sesi scan dibuat");
         // Upload all pages
         await uploadAllPages(s.id);
-      } catch (err: any) {
-        toast.error(err?.detail || "Gagal buat sesi scan");
+      } catch (err: unknown) {
+        const msg =
+          err instanceof Error
+            ? err.message
+            : (err as { detail?: string })?.detail ||
+              "Gagal buat sesi scan";
+        toast.error(msg);
         setStep("capture");
       }
     }
   };
 
   const uploadAllPages = async (sessionId: string) => {
-    for (let i = 0; i < pages.length; i++) {
-      const p = pages[i];
+    // Snapshot pages saat ini untuk upload
+    const currentPages = pages;
+    for (let i = 0; i < currentPages.length; i++) {
+      const p = currentPages[i];
       if (p.serverPage) continue;
       updatePageLocal(p.id, { uploading: true, uploadProgress: 0 });
       try {
@@ -299,9 +422,12 @@ export function CamScannerView() {
           uploadProgress: 100,
           serverPage,
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         updatePageLocal(p.id, { uploading: false });
-        toast.error(err?.detail || `Gagal upload halaman ${i + 1}`);
+        const msg =
+          (err as { detail?: string })?.detail ||
+          `Gagal upload halaman ${i + 1}`;
+        toast.error(msg);
       }
     }
   };
@@ -315,7 +441,7 @@ export function CamScannerView() {
       if (!p.serverPage) continue;
       const ops: Array<Record<string, unknown>> = [];
       if (p.rotation !== 0) ops.push({ op: "rotate", degrees: p.rotation });
-      if (p.crop)
+      if (p.crop) {
         ops.push({
           op: "crop",
           x: p.crop.x,
@@ -323,6 +449,7 @@ export function CamScannerView() {
           w: p.crop.w,
           h: p.crop.h,
         });
+      }
 
       const currentOps = JSON.stringify(p.serverPage.edit_operations || []);
       const newOps = JSON.stringify(ops);
@@ -336,8 +463,11 @@ export function CamScannerView() {
             filter_applied: newFilter,
           });
           updatePageLocal(p.id, { serverPage: updated });
-        } catch (err: any) {
-          toast.error(err?.detail || `Gagal simpan edit halaman`);
+        } catch (err: unknown) {
+          const msg =
+            (err as { detail?: string })?.detail ||
+            "Gagal simpan edit halaman";
+          toast.error(msg);
         }
       }
     }
@@ -378,20 +508,28 @@ export function CamScannerView() {
         `Scan berhasil! Disimpan ke ${res.drive_email} (${res.folder_name})`,
         { duration: 6000 },
       );
+      // Cleanup object URLs sebelum redirect
+      pages.forEach((p) => {
+        if (p.url) URL.revokeObjectURL(p.url);
+      });
       await fetchFiles().catch(() => {});
       router.push("/?view=files");
-    } catch (err: any) {
-      toast.error(err?.detail || "Gagal memproses scan");
+    } catch (err: unknown) {
+      const msg =
+        (err as { detail?: string })?.detail || "Gagal memproses scan";
+      toast.error(msg, { duration: 6000 });
     } finally {
       setProcessing(false);
     }
   };
 
   // =====================================================
-  // CLEANUP
+  // CLEANUP ON CLOSE
   // =====================================================
   const handleClose = () => {
-    pages.forEach((p) => URL.revokeObjectURL(p.url));
+    pages.forEach((p) => {
+      if (p.url) URL.revokeObjectURL(p.url);
+    });
     stopCamera();
     router.push("/?view=files");
   };
@@ -407,6 +545,7 @@ export function CamScannerView() {
           <button
             onClick={handleClose}
             className="grid h-9 w-9 place-items-center rounded-lg text-[var(--y-text-dim)] hover:bg-[var(--y-bg-hover)]"
+            title="Tutup dan kembali"
           >
             <X size={18} />
           </button>
@@ -418,15 +557,21 @@ export function CamScannerView() {
           </div>
 
           {/* Step indicator */}
-          <div className="ml-4 flex items-center gap-1.5 text-[11px] font-semibold">
+          <div className="ml-4 hidden items-center gap-1.5 text-[11px] font-semibold sm:flex">
             <StepBadge active={step === "capture"} done={step !== "capture"}>
               1. Capture
             </StepBadge>
-            <ChevronDown size={12} className="-rotate-90 text-[var(--y-text-mute)]" />
+            <ChevronDown
+              size={12}
+              className="-rotate-90 text-[var(--y-text-mute)]"
+            />
             <StepBadge active={step === "edit"} done={step === "process"}>
               2. Edit
             </StepBadge>
-            <ChevronDown size={12} className="-rotate-90 text-[var(--y-text-mute)]" />
+            <ChevronDown
+              size={12}
+              className="-rotate-90 text-[var(--y-text-mute)]"
+            />
             <StepBadge active={step === "process"}>3. Save</StepBadge>
           </div>
 
@@ -458,7 +603,10 @@ export function CamScannerView() {
                 setCameraFacing((f) =>
                   f === "environment" ? "user" : "environment",
                 );
-                setTimeout(startCamera, 200);
+                // Delay kecil sebelum restart untuk allow hardware release
+                setTimeout(() => {
+                  void startCamera();
+                }, 300);
               }}
               onRemovePage={removePage}
               onNext={goToEdit}
@@ -599,24 +747,40 @@ function CaptureStep({
               <div className="grid h-full place-items-center p-8 text-center">
                 {cameraError ? (
                   <>
-                    <AlertCircle size={48} className="mb-3 text-[var(--y-danger)]" />
+                    <AlertCircle
+                      size={48}
+                      className="mb-3 text-[var(--y-danger)]"
+                    />
                     <div className="text-sm font-semibold text-[var(--y-text)]">
-                      Kamera Error
+                      Kamera Tidak Tersedia
                     </div>
-                    <div className="mt-1 max-w-sm text-xs text-[var(--y-text-dim)]">
+                    <div className="mt-1 max-w-sm text-xs leading-relaxed text-[var(--y-text-dim)]">
                       {cameraError}
                     </div>
-                    <button
-                      onClick={startCamera}
-                      className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg-elev)] px-3 text-xs font-semibold text-[var(--y-text)] hover:bg-[var(--y-bg-hover)]"
-                    >
-                      <RefreshCw size={13} />
-                      Coba Lagi
-                    </button>
+
+                    <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                      <button
+                        onClick={startCamera}
+                        className="y-gradient-brand y-glow-primary inline-flex h-10 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5"
+                      >
+                        <RefreshCw size={15} />
+                        Coba Aktifkan Lagi
+                      </button>
+                      <button
+                        onClick={onImport}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg-elev)] px-5 text-sm font-semibold text-[var(--y-text)] hover:bg-[var(--y-bg-hover)]"
+                      >
+                        <Upload size={15} />
+                        Impor dari Galeri
+                      </button>
+                    </div>
                   </>
                 ) : (
                   <>
-                    <Camera size={56} className="mb-3 text-[var(--y-text-mute)]" />
+                    <Camera
+                      size={56}
+                      className="mb-3 text-[var(--y-text-mute)]"
+                    />
                     <div className="text-sm font-semibold text-[var(--y-text)]">
                       Kamera Belum Aktif
                     </div>
@@ -949,7 +1113,8 @@ function ToolBtn({
       title={label}
       className={cn(
         "grid h-8 w-8 place-items-center rounded-md text-[var(--y-text-dim)] transition-colors hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)]",
-        danger && "hover:bg-[rgba(239,68,68,0.15)] hover:text-[var(--y-danger)]",
+        danger &&
+          "hover:bg-[rgba(239,68,68,0.15)] hover:text-[var(--y-danger)]",
       )}
     >
       {children}
@@ -1011,7 +1176,7 @@ function ProcessStep({
   outputFormat: OutputFormat;
   setOutputFormat: (f: OutputFormat) => void;
   pageSize: "A4" | "A3" | "Letter" | "Legal" | "auto";
-  setPageSize: (p: any) => void;
+  setPageSize: (p: "A4" | "A3" | "Letter" | "Legal" | "auto") => void;
   quality: number;
   setQuality: (n: number) => void;
   useILovePDF: boolean;
@@ -1047,7 +1212,9 @@ function ProcessStep({
               </label>
               <select
                 value={outputFormat}
-                onChange={(e) => setOutputFormat(e.target.value as OutputFormat)}
+                onChange={(e) =>
+                  setOutputFormat(e.target.value as OutputFormat)
+                }
                 className="y-focus h-10 w-full rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm text-[var(--y-text)] outline-none"
               >
                 <option value="pdf">PDF (recommended)</option>
@@ -1062,7 +1229,16 @@ function ProcessStep({
               </label>
               <select
                 value={pageSize}
-                onChange={(e) => setPageSize(e.target.value)}
+                onChange={(e) =>
+                  setPageSize(
+                    e.target.value as
+                      | "A4"
+                      | "A3"
+                      | "Letter"
+                      | "Legal"
+                      | "auto",
+                  )
+                }
                 className="y-focus h-10 w-full rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm text-[var(--y-text)] outline-none"
               >
                 <option value="A4">A4</option>
