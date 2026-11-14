@@ -17,6 +17,7 @@ import {
   XCircle,
   KeyRound,
   X,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,9 +32,67 @@ import {
 } from "@/lib/api/transfer";
 import { useYudit, isOwner } from "@/lib/yudit/store";
 import { formatDateTime } from "@/lib/yudit/utils";
+import { ApiError } from "@/lib/api/client";
 
 type Step = "intro" | "target" | "verify" | "confirm" | "executing" | "done";
 
+// =====================================================
+// HELPER: parse error dari ApiError atau Error biasa
+// =====================================================
+function parseTransferError(err: unknown): {
+  title: string;
+  message: string;
+  hint?: string;
+} {
+  if (err instanceof ApiError) {
+    const detail = err.detail || "";
+    const lower = detail.toLowerCase();
+
+    if (lower.includes("belum terdaftar")) {
+      return {
+        title: "User Belum Terdaftar",
+        message: detail,
+        hint:
+          "Minta user target untuk mendaftar dulu di DPRD Cloud " +
+          "menggunakan email tersebut, lalu coba transfer lagi.",
+      };
+    }
+    if (lower.includes("tidak bisa transfer ke akun sendiri")) {
+      return {
+        title: "Email Tidak Valid",
+        message: detail,
+        hint: "Gunakan email user lain yang terdaftar sebagai OWNER.",
+      };
+    }
+    if (lower.includes("sudah ada transfer")) {
+      return {
+        title: "Transfer Sudah Berjalan",
+        message: detail,
+        hint:
+          "Batalkan transfer yang sedang berjalan dulu di halaman ini, " +
+          "atau tunggu sampai selesai.",
+      };
+    }
+    if (err.status === 403) {
+      return {
+        title: "Akses Ditolak",
+        message: detail || "Hanya owner workspace yang bisa transfer.",
+      };
+    }
+    return {
+      title: "Gagal Memproses",
+      message: detail || "Terjadi kesalahan.",
+    };
+  }
+  return {
+    title: "Gagal Memproses",
+    message: err instanceof Error ? err.message : "Terjadi kesalahan.",
+  };
+}
+
+// =====================================================
+// MAIN
+// =====================================================
 export function TransferView() {
   const router = useRouter();
 
@@ -41,7 +100,6 @@ export function TransferView() {
   const isAuthenticated = useYudit((s) => s.isAuthenticated);
   const bootstrapAuth = useYudit((s) => s.bootstrapAuth);
 
-  // ⭐ Auth gate — supaya tidak redirect sebelum bootstrap selesai
   const [bootstrapped, setBootstrapped] = useState(false);
 
   const [transfers, setTransfers] = useState<Transfer[]>([]);
@@ -54,19 +112,22 @@ export function TransferView() {
   const [verificationCode, setVerificationCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Inline error state untuk step target & verify
+  const [inlineError, setInlineError] = useState<{
+    title: string;
+    message: string;
+    hint?: string;
+  } | null>(null);
+
   const isOwnerUser = isOwner(user);
 
-  // ============================================
-  // 1. Bootstrap auth dari localStorage SEBELUM cek permission
-  // ============================================
+  // ---- Bootstrap auth dulu sebelum cek permission ----
   useEffect(() => {
     bootstrapAuth();
     setBootstrapped(true);
   }, [bootstrapAuth]);
 
-  // ============================================
-  // 2. Setelah bootstrapped, baru cek permission & load data
-  // ============================================
+  // ---- Load data setelah bootstrapped ----
   const loadTransfers = useCallback(async () => {
     setLoading(true);
     try {
@@ -82,31 +143,23 @@ export function TransferView() {
 
   useEffect(() => {
     if (!bootstrapped) return;
-
     if (!isAuthenticated) {
       router.replace("/");
       return;
     }
-
     if (!isOwnerUser) {
       router.replace("/");
       return;
     }
-
     void loadTransfers();
   }, [bootstrapped, isAuthenticated, isOwnerUser, router, loadTransfers]);
 
-  // ============================================
-  // 3. Loading screen selagi menunggu auth
-  // ============================================
+  // ---- Loading state ----
   if (!bootstrapped) {
     return (
       <div className="yudit-ambient grid min-h-screen place-items-center">
         <div className="flex items-center gap-2 text-sm text-[var(--y-text-dim)]">
-          <Loader2
-            size={22}
-            className="animate-spin text-[var(--y-primary)]"
-          />
+          <Loader2 size={22} className="animate-spin text-[var(--y-primary)]" />
           Memeriksa sesi…
         </div>
       </div>
@@ -117,10 +170,7 @@ export function TransferView() {
     return (
       <div className="yudit-ambient grid min-h-screen place-items-center">
         <div className="flex items-center gap-2 text-sm text-[var(--y-text-dim)]">
-          <Loader2
-            size={22}
-            className="animate-spin text-[var(--y-primary)]"
-          />
+          <Loader2 size={22} className="animate-spin text-[var(--y-primary)]" />
           Mengarahkan…
         </div>
       </div>
@@ -138,28 +188,53 @@ export function TransferView() {
   };
 
   const handleRequest = async () => {
-    if (!targetEmail.trim()) {
-      toast.error("Masukkan email tujuan");
+    setInlineError(null);
+
+    const email = targetEmail.trim().toLowerCase();
+
+    if (!email) {
+      setInlineError({
+        title: "Email Kosong",
+        message: "Masukkan email tujuan transfer.",
+      });
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setInlineError({
+        title: "Format Email Tidak Valid",
+        message: "Email tidak sesuai format standar.",
+        hint: "Contoh: nama@domain.com",
+      });
+      return;
+    }
+    if (email === (user?.email || "").toLowerCase()) {
+      setInlineError({
+        title: "Email Sama dengan Anda",
+        message: "Tidak bisa transfer ke akun sendiri.",
+        hint: "Gunakan email user lain.",
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
       const res = await requestTransfer({
-        target_email: targetEmail.trim(),
+        target_email: email,
         reason: reason.trim() || undefined,
       });
       toast.success(
-        `Kode verifikasi dikirim ke ${user?.email}. Berlaku ${
-          res.message.includes("30 menit") ? "30 menit" : "sementara"
-        }.`,
+        `Kode verifikasi dikirim ke ${user?.email}. ` +
+          `Berlaku ${res.message.includes("30 menit") ? "30 menit" : "sementara"}.`,
         { duration: 8000 },
       );
       const detail = await loadTransferDetail(res.transfer_id);
       setActiveTransfer(detail);
+      setInlineError(null);
       setStep("verify");
     } catch (e: unknown) {
-      const err = e as { detail?: string };
-      toast.error(err?.detail || "Gagal membuat request");
+      const parsed = parseTransferError(e);
+      setInlineError(parsed);
+      toast.error(parsed.message, { duration: 8000 });
     } finally {
       setSubmitting(false);
     }
@@ -172,6 +247,7 @@ export function TransferView() {
       return;
     }
     setSubmitting(true);
+    setInlineError(null);
     try {
       await verifyTransfer({
         transfer_id: activeTransfer.id,
@@ -182,8 +258,8 @@ export function TransferView() {
       const updated = await loadTransferDetail(activeTransfer.id);
       setActiveTransfer(updated);
     } catch (e: unknown) {
-      const err = e as { detail?: string };
-      toast.error(err?.detail || "Kode salah", { duration: 6000 });
+      const parsed = parseTransferError(e);
+      toast.error(parsed.message, { duration: 6000 });
     } finally {
       setSubmitting(false);
     }
@@ -198,10 +274,8 @@ export function TransferView() {
       setStep("done");
       await loadTransfers();
     } catch (e: unknown) {
-      const err = e as { detail?: string };
-      toast.error(err?.detail || "Gagal eksekusi transfer", {
-        duration: 8000,
-      });
+      const parsed = parseTransferError(e);
+      toast.error(parsed.message, { duration: 8000 });
       setStep("confirm");
     }
   };
@@ -216,10 +290,39 @@ export function TransferView() {
       toast.success("Transfer dibatalkan");
       setActiveTransfer(null);
       setStep("intro");
+      setInlineError(null);
       await loadTransfers();
     } catch (e: unknown) {
-      const err = e as { detail?: string };
-      toast.error(err?.detail || "Gagal cancel");
+      const parsed = parseTransferError(e);
+      toast.error(parsed.message);
+    }
+  };
+
+  const resetFlow = () => {
+    setStep("intro");
+    setActiveTransfer(null);
+    setTargetEmail("");
+    setReason("");
+    setVerificationCode("");
+    setInlineError(null);
+  };
+
+  const copyErrorToClipboard = async (err: {
+    title: string;
+    message: string;
+    hint?: string;
+  }) => {
+    const text = [
+      err.title,
+      "",
+      err.message,
+      err.hint ? `\nHint: ${err.hint}` : "",
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Pesan error disalin");
+    } catch {
+      toast.error("Gagal menyalin pesan");
     }
   };
 
@@ -264,7 +367,10 @@ export function TransferView() {
                     Mulai Transfer Baru
                   </h2>
                   <button
-                    onClick={() => setStep("target")}
+                    onClick={() => {
+                      setInlineError(null);
+                      setStep("target");
+                    }}
                     className="y-gradient-brand y-glow-primary inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-white transition-all hover:-translate-y-0.5"
                   >
                     <UserPlus size={16} />
@@ -291,6 +397,7 @@ export function TransferView() {
                           transfer={t}
                           onResume={(tr) => {
                             setActiveTransfer(tr);
+                            setInlineError(null);
                             if (tr.status === "pending") setStep("verify");
                             else if (tr.status === "verified")
                               setStep("confirm");
@@ -315,6 +422,48 @@ export function TransferView() {
                 <h2 className="mb-4 text-base font-bold text-[var(--y-text)]">
                   Masukkan Email Target
                 </h2>
+
+                {/* Inline error */}
+                {inlineError && (
+                  <div className="mb-4 rounded-xl border border-[rgba(239,68,68,0.3)] bg-[rgba(239,68,68,0.06)] p-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle
+                        size={16}
+                        className="mt-0.5 shrink-0 text-[var(--y-danger)]"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[12.5px] font-bold text-[var(--y-danger)]">
+                          {inlineError.title}
+                        </p>
+                        <p className="mt-0.5 text-[12px] leading-relaxed text-[var(--y-text-dim)]">
+                          {inlineError.message}
+                        </p>
+                        {inlineError.hint && (
+                          <p className="mt-1.5 text-[11px] italic text-[var(--y-text-mute)]">
+                            💡 {inlineError.hint}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <button
+                          onClick={() => copyErrorToClipboard(inlineError)}
+                          title="Salin pesan"
+                          className="grid h-6 w-6 place-items-center rounded text-[var(--y-text-mute)] hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)]"
+                        >
+                          <Copy size={12} />
+                        </button>
+                        <button
+                          onClick={() => setInlineError(null)}
+                          title="Tutup"
+                          className="grid h-6 w-6 place-items-center rounded text-[var(--y-text-mute)] hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)]"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-4">
                   <div>
                     <label className="mb-1.5 block text-[11px] font-bold uppercase text-[var(--y-text-mute)]">
@@ -323,13 +472,17 @@ export function TransferView() {
                     <input
                       type="email"
                       value={targetEmail}
-                      onChange={(e) => setTargetEmail(e.target.value)}
+                      onChange={(e) => {
+                        setTargetEmail(e.target.value);
+                        if (inlineError) setInlineError(null);
+                      }}
                       placeholder="nama@domain.com"
                       autoFocus
                       className="y-focus h-11 w-full rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm text-[var(--y-text)] outline-none"
                     />
                     <p className="mt-1 text-[11px] text-[var(--y-text-mute)]">
-                      User harus sudah terdaftar sebagai OWNER di aplikasi ini.
+                      User harus <b>sudah terdaftar</b> sebagai OWNER di
+                      aplikasi ini.
                     </p>
                   </div>
                   <div>
@@ -346,7 +499,10 @@ export function TransferView() {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => setStep("intro")}
+                      onClick={() => {
+                        setInlineError(null);
+                        setStep("intro");
+                      }}
                       className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] text-sm font-semibold text-[var(--y-text-dim)] hover:bg-[var(--y-bg-hover)]"
                     >
                       <ArrowLeft size={14} />
@@ -628,7 +784,9 @@ function InfoCard() {
             size={14}
             className="mt-0.5 shrink-0 text-[var(--y-success)]"
           />
-          <span>Target harus sudah terdaftar sebagai OWNER di aplikasi</span>
+          <span>
+            Target <b>harus sudah terdaftar</b> sebagai OWNER di aplikasi ini
+          </span>
         </div>
         <div className="flex items-start gap-2">
           <XCircle
