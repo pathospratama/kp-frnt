@@ -13,6 +13,10 @@ import { useYudit, canManageWorkspace } from "@/lib/yudit/store";
 import type { ViewKey } from "@/lib/yudit/types";
 import { CreateFolderModal } from "./modals/create-folder-modal";
 
+// =====================================================
+// VIEW TITLES
+// ⭐ Harus lengkap untuk SEMUA ViewKey — TypeScript strict mode
+// =====================================================
 const TITLES: Record<ViewKey, string> = {
   files: "My Files",
   monthly: "Arsip Per Bulan",
@@ -22,7 +26,16 @@ const TITLES: Record<ViewKey, string> = {
   collaborators: "Collaborators",
   "my-tasks": "Dokumen Saya",
   profile: "Profil Saya",
+  scan: "Cam Scanner",
+  transfer: "Transfer Workspace",
 };
+
+// ⭐ Views yang TIDAK menampilkan tombol Upload / New Folder
+const HIDE_UPLOAD_VIEWS: ViewKey[] = [
+  "profile",
+  "scan",
+  "transfer",
+];
 
 export function Topbar() {
   const currentView = useYudit((s) => s.currentView);
@@ -33,13 +46,12 @@ export function Topbar() {
   const drives = useYudit((s) => s.drives);
   const user = useYudit((s) => s.user);
 
-  // ⭐ FIX: sekarang store sudah punya property ini
   const currentFolderId = useYudit((s) => s.currentFolderId);
   const setCurrentFolderId = useYudit((s) => s.setCurrentFolderId);
   const fetchFolders = useYudit((s) => s.fetchFolders);
 
   const isManager = canManageWorkspace(user);
-  const isProfileView = currentView === "profile";
+  const showUploadActions = !HIDE_UPLOAD_VIEWS.includes(currentView);
 
   const [folderModalOpen, setFolderModalOpen] = useState(false);
 
@@ -57,7 +69,6 @@ export function Topbar() {
     input.multiple = true;
     input.onchange = () => {
       if (input.files) {
-        // ⭐ Pass currentFolderId (2 argumen — signature sudah benar di store baru)
         uploadFiles(Array.from(input.files), currentFolderId);
       }
     };
@@ -116,7 +127,7 @@ export function Topbar() {
           </nav>
 
           <div className="flex shrink-0 items-center gap-2">
-            {!isProfileView && (
+            {showUploadActions && (
               <>
                 <button
                   onClick={handleNewFolder}
