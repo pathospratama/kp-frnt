@@ -8,16 +8,16 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
+  Copy,
   Crown,
+  KeyRound,
   Loader2,
   Mail,
   RefreshCw,
   ShieldAlert,
   UserPlus,
-  XCircle,
-  KeyRound,
   X,
-  Copy,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -37,12 +37,13 @@ import { ApiError } from "@/lib/api/client";
 type Step = "intro" | "target" | "verify" | "confirm" | "executing" | "done";
 
 // =====================================================
-// HELPER: parse error dari ApiError atau Error biasa
+// ERROR PARSER
 // =====================================================
 function parseTransferError(err: unknown): {
   title: string;
   message: string;
   hint?: string;
+  canReset: boolean;
 } {
   if (err instanceof ApiError) {
     const detail = err.detail || "";
@@ -55,15 +56,32 @@ function parseTransferError(err: unknown): {
         hint:
           "Minta user target untuk mendaftar dulu di DPRD Cloud " +
           "menggunakan email tersebut, lalu coba transfer lagi.",
+        canReset: false,
       };
     }
+
+    if (lower.includes("bukan owner") || lower.includes("member")) {
+      return {
+        title: "Target Bukan Owner",
+        message: detail,
+        hint:
+          "Target harus OWNER di workspace-nya sendiri. " +
+          "Kalau dia member di workspace Anda, minta dia daftar " +
+          "email baru sebagai owner, ATAU batalkan transfer ini " +
+          "dan pilih target owner lain.",
+        canReset: true,
+      };
+    }
+
     if (lower.includes("tidak bisa transfer ke akun sendiri")) {
       return {
         title: "Email Tidak Valid",
         message: detail,
         hint: "Gunakan email user lain yang terdaftar sebagai OWNER.",
+        canReset: false,
       };
     }
+
     if (lower.includes("sudah ada transfer")) {
       return {
         title: "Transfer Sudah Berjalan",
@@ -71,22 +89,39 @@ function parseTransferError(err: unknown): {
         hint:
           "Batalkan transfer yang sedang berjalan dulu di halaman ini, " +
           "atau tunggu sampai selesai.",
+        canReset: false,
       };
     }
+
+    if (lower.includes("harus berstatus")) {
+      return {
+        title: "Status Transfer Tidak Valid",
+        message: detail,
+        hint:
+          "Batalkan transfer ini lalu mulai dari awal.",
+        canReset: true,
+      };
+    }
+
     if (err.status === 403) {
       return {
         title: "Akses Ditolak",
         message: detail || "Hanya owner workspace yang bisa transfer.",
+        canReset: false,
       };
     }
+
     return {
       title: "Gagal Memproses",
       message: detail || "Terjadi kesalahan.",
+      canReset: false,
     };
   }
+
   return {
     title: "Gagal Memproses",
     message: err instanceof Error ? err.message : "Terjadi kesalahan.",
+    canReset: false,
   };
 }
 
@@ -112,22 +147,21 @@ export function TransferView() {
   const [verificationCode, setVerificationCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Inline error state untuk step target & verify
   const [inlineError, setInlineError] = useState<{
     title: string;
     message: string;
     hint?: string;
+    canReset: boolean;
   } | null>(null);
 
   const isOwnerUser = isOwner(user);
 
-  // ---- Bootstrap auth dulu sebelum cek permission ----
+  // ---- Bootstrap ----
   useEffect(() => {
     bootstrapAuth();
     setBootstrapped(true);
   }, [bootstrapAuth]);
 
-  // ---- Load data setelah bootstrapped ----
   const loadTransfers = useCallback(async () => {
     setLoading(true);
     try {
@@ -154,7 +188,6 @@ export function TransferView() {
     void loadTransfers();
   }, [bootstrapped, isAuthenticated, isOwnerUser, router, loadTransfers]);
 
-  // ---- Loading state ----
   if (!bootstrapped) {
     return (
       <div className="yudit-ambient grid min-h-screen place-items-center">
@@ -196,6 +229,7 @@ export function TransferView() {
       setInlineError({
         title: "Email Kosong",
         message: "Masukkan email tujuan transfer.",
+        canReset: false,
       });
       return;
     }
@@ -204,6 +238,7 @@ export function TransferView() {
         title: "Format Email Tidak Valid",
         message: "Email tidak sesuai format standar.",
         hint: "Contoh: nama@domain.com",
+        canReset: false,
       });
       return;
     }
@@ -212,6 +247,7 @@ export function TransferView() {
         title: "Email Sama dengan Anda",
         message: "Tidak bisa transfer ke akun sendiri.",
         hint: "Gunakan email user lain.",
+        canReset: false,
       });
       return;
     }
@@ -267,7 +303,9 @@ export function TransferView() {
 
   const handleExecute = async () => {
     if (!activeTransfer) return;
+    setInlineError(null);
     setStep("executing");
+
     try {
       await executeTransfer(activeTransfer.id);
       toast.success("Workspace berhasil dipindahkan!");
@@ -275,7 +313,18 @@ export function TransferView() {
       await loadTransfers();
     } catch (e: unknown) {
       const parsed = parseTransferError(e);
+      setInlineError(parsed);
       toast.error(parsed.message, { duration: 8000 });
+
+      // Reload detail untuk dapat status terbaru
+      try {
+        const fresh = await loadTransferDetail(activeTransfer.id);
+        setActiveTransfer(fresh);
+      } catch {
+        /* ignore */
+      }
+
+      // Kembali ke step confirm agar user bisa cancel / arahkan
       setStep("confirm");
     }
   };
@@ -298,16 +347,7 @@ export function TransferView() {
     }
   };
 
-  const resetFlow = () => {
-    setStep("intro");
-    setActiveTransfer(null);
-    setTargetEmail("");
-    setReason("");
-    setVerificationCode("");
-    setInlineError(null);
-  };
-
-  const copyErrorToClipboard = async (err: {
+  const copyError = async (err: {
     title: string;
     message: string;
     hint?: string;
@@ -351,7 +391,6 @@ export function TransferView() {
       <main className="flex-1 overflow-y-auto">
         <div className="y-container mx-auto max-w-2xl py-6">
           <AnimatePresence mode="wait">
-            {/* ============ INTRO ============ */}
             {step === "intro" && (
               <motion.div
                 key="intro"
@@ -410,7 +449,6 @@ export function TransferView() {
               </motion.div>
             )}
 
-            {/* ============ TARGET EMAIL ============ */}
             {step === "target" && (
               <motion.div
                 key="target"
@@ -423,45 +461,12 @@ export function TransferView() {
                   Masukkan Email Target
                 </h2>
 
-                {/* Inline error */}
                 {inlineError && (
-                  <div className="mb-4 rounded-xl border border-[rgba(239,68,68,0.3)] bg-[rgba(239,68,68,0.06)] p-3">
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle
-                        size={16}
-                        className="mt-0.5 shrink-0 text-[var(--y-danger)]"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[12.5px] font-bold text-[var(--y-danger)]">
-                          {inlineError.title}
-                        </p>
-                        <p className="mt-0.5 text-[12px] leading-relaxed text-[var(--y-text-dim)]">
-                          {inlineError.message}
-                        </p>
-                        {inlineError.hint && (
-                          <p className="mt-1.5 text-[11px] italic text-[var(--y-text-mute)]">
-                            💡 {inlineError.hint}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 gap-1">
-                        <button
-                          onClick={() => copyErrorToClipboard(inlineError)}
-                          title="Salin pesan"
-                          className="grid h-6 w-6 place-items-center rounded text-[var(--y-text-mute)] hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)]"
-                        >
-                          <Copy size={12} />
-                        </button>
-                        <button
-                          onClick={() => setInlineError(null)}
-                          title="Tutup"
-                          className="grid h-6 w-6 place-items-center rounded text-[var(--y-text-mute)] hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)]"
-                        >
-                          <X size={12} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                  <ErrorBanner
+                    err={inlineError}
+                    onClose={() => setInlineError(null)}
+                    onCopy={() => copyError(inlineError)}
+                  />
                 )}
 
                 <div className="space-y-4">
@@ -481,8 +486,8 @@ export function TransferView() {
                       className="y-focus h-11 w-full rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm text-[var(--y-text)] outline-none"
                     />
                     <p className="mt-1 text-[11px] text-[var(--y-text-mute)]">
-                      User harus <b>sudah terdaftar</b> sebagai OWNER di
-                      aplikasi ini.
+                      User harus <b>sudah terdaftar sebagai OWNER</b> (bukan
+                      member) di aplikasi ini.
                     </p>
                   </div>
                   <div>
@@ -525,7 +530,6 @@ export function TransferView() {
               </motion.div>
             )}
 
-            {/* ============ VERIFY CODE ============ */}
             {step === "verify" && activeTransfer && (
               <motion.div
                 key="verify"
@@ -542,8 +546,8 @@ export function TransferView() {
                   <div className="text-[12px] leading-relaxed text-[var(--y-warning)]">
                     <b>Kode dikirim ke email {user?.email}</b>
                     <br />
-                    Buka email Anda, salin kode 6 digit, dan masukkan di bawah.
-                    JANGAN bagikan kode ini ke siapa pun.
+                    Buka email Anda, salin kode 6 digit, dan masukkan di
+                    bawah. JANGAN bagikan kode ini ke siapa pun.
                   </div>
                 </div>
 
@@ -601,7 +605,6 @@ export function TransferView() {
               </motion.div>
             )}
 
-            {/* ============ CONFIRM ============ */}
             {step === "confirm" && activeTransfer && (
               <motion.div
                 key="confirm"
@@ -626,6 +629,15 @@ export function TransferView() {
                     </p>
                   </div>
                 </div>
+
+                {/* Error banner setelah execute gagal */}
+                {inlineError && (
+                  <ErrorBanner
+                    err={inlineError}
+                    onClose={() => setInlineError(null)}
+                    onCopy={() => copyError(inlineError)}
+                  />
+                )}
 
                 <div className="mb-4 space-y-1.5 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] p-4 text-[12.5px]">
                   <Row
@@ -665,6 +677,11 @@ export function TransferView() {
                       />
                     </>
                   )}
+                  <div className="my-2 border-t border-[var(--y-border-soft)]" />
+                  <Row
+                    label="Status"
+                    value={activeTransfer.status.toUpperCase()}
+                  />
                 </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row">
@@ -673,11 +690,14 @@ export function TransferView() {
                     className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] text-sm font-semibold text-[var(--y-text-dim)] hover:bg-[var(--y-bg-hover)]"
                   >
                     <X size={14} />
-                    Batalkan Transfer
+                    {inlineError?.canReset
+                      ? "Batalkan & Mulai Ulang"
+                      : "Batalkan Transfer"}
                   </button>
                   <button
                     onClick={handleExecute}
-                    className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--y-danger)] text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-[#dc2626]"
+                    disabled={activeTransfer.status !== "verified"}
+                    className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--y-danger)] text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-[#dc2626] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                   >
                     <CheckCircle2 size={16} />
                     Ya, Transfer Sekarang
@@ -686,7 +706,6 @@ export function TransferView() {
               </motion.div>
             )}
 
-            {/* ============ EXECUTING ============ */}
             {step === "executing" && (
               <motion.div
                 key="executing"
@@ -708,7 +727,6 @@ export function TransferView() {
               </motion.div>
             )}
 
-            {/* ============ DONE ============ */}
             {step === "done" && (
               <motion.div
                 key="done"
@@ -749,6 +767,56 @@ export function TransferView() {
 // =====================================================
 // SUB-COMPONENTS
 // =====================================================
+function ErrorBanner({
+  err,
+  onClose,
+  onCopy,
+}: {
+  err: { title: string; message: string; hint?: string };
+  onClose: () => void;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="mb-4 rounded-xl border border-[rgba(239,68,68,0.3)] bg-[rgba(239,68,68,0.06)] p-3">
+      <div className="flex items-start gap-2">
+        <AlertTriangle
+          size={16}
+          className="mt-0.5 shrink-0 text-[var(--y-danger)]"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-[12.5px] font-bold text-[var(--y-danger)]">
+            {err.title}
+          </p>
+          <p className="mt-0.5 text-[12px] leading-relaxed text-[var(--y-text-dim)]">
+            {err.message}
+          </p>
+          {err.hint && (
+            <p className="mt-1.5 text-[11px] italic text-[var(--y-text-mute)]">
+              💡 {err.hint}
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <button
+            onClick={onCopy}
+            title="Salin pesan"
+            className="grid h-6 w-6 place-items-center rounded text-[var(--y-text-mute)] hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)]"
+          >
+            <Copy size={12} />
+          </button>
+          <button
+            onClick={onClose}
+            title="Tutup"
+            className="grid h-6 w-6 place-items-center rounded text-[var(--y-text-mute)] hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)]"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InfoCard() {
   return (
     <div className="rounded-2xl border border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.05)] p-5">
@@ -785,7 +853,8 @@ function InfoCard() {
             className="mt-0.5 shrink-0 text-[var(--y-success)]"
           />
           <span>
-            Target <b>harus sudah terdaftar</b> sebagai OWNER di aplikasi ini
+            Target <b>harus OWNER</b> di workspace-nya sendiri —{" "}
+            <b>bukan member</b> di workspace Anda
           </span>
         </div>
         <div className="flex items-start gap-2">
