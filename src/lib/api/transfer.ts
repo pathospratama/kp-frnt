@@ -33,9 +33,6 @@ export interface Transfer {
   execution_log?: Array<Record<string, unknown>>;
 }
 
-// =====================================================
-// REQUEST TRANSFER
-// =====================================================
 export async function requestTransfer(payload: {
   target_email: string;
   reason?: string;
@@ -51,9 +48,6 @@ export async function requestTransfer(payload: {
   return data;
 }
 
-// =====================================================
-// VERIFY CODE
-// =====================================================
 export async function verifyTransfer(payload: {
   transfer_id: string;
   code: string;
@@ -66,10 +60,6 @@ export async function verifyTransfer(payload: {
   return data;
 }
 
-// =====================================================
-// EXECUTE
-// ⚠️ FIX 422: kirim HANYA transfer_id (bukan code)
-// =====================================================
 export async function executeTransfer(transferId: string): Promise<{
   transfer_id: string;
   status: TransferStatus;
@@ -83,9 +73,6 @@ export async function executeTransfer(transferId: string): Promise<{
   return data;
 }
 
-// =====================================================
-// CANCEL
-// =====================================================
 export async function cancelTransfer(payload: {
   transfer_id: string;
   reason?: string;
@@ -94,17 +81,11 @@ export async function cancelTransfer(payload: {
   return data;
 }
 
-// =====================================================
-// LIST
-// =====================================================
 export async function listTransfers(): Promise<Transfer[]> {
   const { data } = await api.get("/transfer/");
   return data;
 }
 
-// =====================================================
-// DETAIL
-// =====================================================
 export async function getTransferDetail(id: string): Promise<Transfer> {
   const { data } = await api.get(`/transfer/${id}`);
   return data;
