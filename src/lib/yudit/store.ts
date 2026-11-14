@@ -2,7 +2,7 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 import type {
   DriveAccount,
@@ -34,7 +34,6 @@ import {
   ApiError,
 } from "@/lib/api/client";
 
-// ⭐ Folder API
 import {
   listFolders,
   listFilesInFolder,
@@ -86,23 +85,10 @@ export function defaultViewForRole(user: User | null): ViewKey {
   return isMember(user) ? "my-tasks" : "files";
 }
 
-// =====================================================
-// CAN ACCESS VIEW
-// ⭐ Semua role boleh akses scan (cam scanner)
-// ⭐ Hanya owner yang boleh akses transfer
-// =====================================================
 export function canAccessView(user: User | null, view: ViewKey): boolean {
   if (!user) return false;
-
-  // Member hanya bisa akses my-tasks khusus — bukan owner-only feature
   if (view === "my-tasks") return isMember(user);
-
-  // Transfer workspace — HANYA owner
   if (view === "transfer") return isOwner(user);
-
-  // Scan (cam scanner) — semua role boleh (member upload ke pool owner)
-  // Profile — semua role
-  // Files/Monthly/Stats/Convert/Drives/Collaborators — semua role
   return true;
 }
 
@@ -113,6 +99,8 @@ interface YuditState {
   isAuthenticated: boolean;
   user: User | null;
   authLoading: boolean;
+  /** Flag — sudah pernah memanggil bootstrapAuth? */
+  bootstrapped: boolean;
 
   currentView: ViewKey;
   sidebarOpen: boolean;
@@ -124,7 +112,6 @@ interface YuditState {
   defaultCategories: catApi.ApiCategory[];
   collaborators: Collaborator[];
 
-  // Folder state
   currentFolderId: string | null;
   folders: FolderItem[];
   folderBreadcrumb: BreadcrumbItem[];
@@ -190,7 +177,6 @@ interface YuditState {
   fetchCategories: () => Promise<void>;
   fetchCollaborators: () => Promise<void>;
 
-  // Folder actions
   fetchFolders: (parentId?: string | null) => Promise<void>;
   setCurrentFolderId: (folderId: string | null) => Promise<void>;
   refreshFolderFiles: () => Promise<void>;
@@ -259,6 +245,28 @@ interface YuditState {
 const EMPTY_POOL: PoolInfo = { total: 0, used: 0, free: 0, accounts: 0 };
 
 // =====================================================
+// ⭐ BACA currentView DARI URL
+// Dipakai saat first-load supaya store sinkron dengan URL
+// =====================================================
+function _viewFromUrl(): ViewKey | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get("view");
+    const valid: ViewKey[] = [
+      "files", "monthly", "stats", "drives", "convert",
+      "collaborators", "my-tasks", "profile", "scan", "transfer",
+    ];
+    if (v && (valid as string[]).includes(v)) {
+      return v as ViewKey;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+// =====================================================
 // STORE
 // =====================================================
 export const useYudit = create<YuditState>()(
@@ -270,6 +278,7 @@ export const useYudit = create<YuditState>()(
       isAuthenticated: false,
       user: null,
       authLoading: false,
+      bootstrapped: false,
 
       currentView: "files",
       sidebarOpen: false,
@@ -315,32 +324,59 @@ export const useYudit = create<YuditState>()(
       driveAuthError: { email: null, message: null, lastAt: null },
 
       // =====================================================
-      // AUTH
+      // ⭐ BOOTSTRAP AUTH — IDEMPOTENT & TIDAK OVERRIDE currentView
       // =====================================================
       bootstrapAuth: () => {
-        const token = getToken();
-        const user = getStoredUser<User>();
-        if (!token || !user) {
-          set({ isAuthenticated: false, user: null });
-          return;
-        }
-        if (!user.role) {
-          clearToken();
-          setStoredUser({ isAuthenticated: false, user: null });
-          toast("Data user tidak valid. Silakan login ulang.", "info");
+        // Kalau sudah pernah di-bootstrap, jangan reset apa-apa
+        if (get().bootstrapped) {
           return;
         }
 
-        const targetView = defaultViewForRole(user);
+        const token = getToken();
+        const user = getStoredUser<User>();
+
+        if (!token || !user) {
+          set({
+            isAuthenticated: false,
+            user: null,
+            bootstrapped: true,
+          });
+          return;
+        }
+
+        if (!user.role) {
+          clearToken();
+          set({
+            isAuthenticated: false,
+            user: null,
+            bootstrapped: true,
+          });
+          return;
+        }
+
+        // ⭐ Sinkron currentView dengan URL
+        // Kalau URL punya ?view=xxx, pakai itu.
+        // Kalau tidak ada, pakai nilai yang sudah ada (dari persist) atau default.
+        const urlView = _viewFromUrl();
+        let nextView: ViewKey = get().currentView;
+
+        if (urlView && canAccessView(user, urlView)) {
+          nextView = urlView;
+        } else if (!canAccessView(user, nextView)) {
+          nextView = defaultViewForRole(user);
+        }
+
         set({
           isAuthenticated: true,
           user,
-          currentView: canAccessView(user, get().currentView)
-            ? get().currentView
-            : targetView,
+          bootstrapped: true,
+          currentView: nextView,
         });
       },
 
+      // =====================================================
+      // LOGIN
+      // =====================================================
       login: async (email, password) => {
         set({ authLoading: true });
         try {
@@ -367,6 +403,7 @@ export const useYudit = create<YuditState>()(
             isAuthenticated: true,
             user,
             authLoading: false,
+            bootstrapped: true,
             currentView: defaultViewForRole(user),
             driveAuthError: { email: null, message: null, lastAt: null },
           });
@@ -412,6 +449,9 @@ export const useYudit = create<YuditState>()(
         }
       },
 
+      // =====================================================
+      // REGISTER
+      // =====================================================
       register: async (email, username, password) => {
         set({ authLoading: true });
         try {
@@ -438,6 +478,7 @@ export const useYudit = create<YuditState>()(
             isAuthenticated: true,
             user,
             authLoading: false,
+            bootstrapped: true,
             currentView: defaultViewForRole(user),
             driveAuthError: { email: null, message: null, lastAt: null },
           });
@@ -453,11 +494,15 @@ export const useYudit = create<YuditState>()(
         }
       },
 
+      // =====================================================
+      // LOGOUT
+      // =====================================================
       logout: () => {
         clearToken();
         set({
           isAuthenticated: false,
           user: null,
+          bootstrapped: false,   // reset supaya bisa bootstrap lagi setelah login
           currentView: "files",
           previewFileId: null,
           shareFileId: null,
@@ -482,6 +527,9 @@ export const useYudit = create<YuditState>()(
         toast("Logout berhasil", "info");
       },
 
+      // =====================================================
+      // CHANGE PASSWORD
+      // =====================================================
       changePassword: async (currentPassword, newPassword) => {
         try {
           await authApi.changePassword(currentPassword, newPassword);
@@ -505,8 +553,7 @@ export const useYudit = create<YuditState>()(
       },
 
       // =====================================================
-      // VIEWS
-      // ⭐ SPECIAL CASE: scan & transfer pakai route terpisah
+      // ⭐ SET VIEW — scan & transfer pakai route terpisah
       // =====================================================
       setView: (v) => {
         const user = get().user;
@@ -517,7 +564,7 @@ export const useYudit = create<YuditState>()(
           return;
         }
 
-        // ⭐ Cam Scanner adalah halaman full-screen terpisah
+        // Cam Scanner — halaman full-screen terpisah
         if (v === "scan") {
           set({ sidebarOpen: false });
           if (typeof window !== "undefined") {
@@ -526,7 +573,7 @@ export const useYudit = create<YuditState>()(
           return;
         }
 
-        // ⭐ Transfer Workspace adalah halaman terpisah
+        // Transfer Workspace — halaman terpisah
         if (v === "transfer") {
           set({ sidebarOpen: false });
           if (typeof window !== "undefined") {
@@ -551,7 +598,7 @@ export const useYudit = create<YuditState>()(
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
       // =====================================================
-      // DATA FETCH
+      // DATA FETCH (tidak diubah dari versi sebelumnya)
       // =====================================================
       fetchFiles: async (params) => {
         set({ filesLoading: true });
@@ -635,9 +682,6 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-      // =====================================================
-      // FOLDER ACTIONS
-      // =====================================================
       fetchFolders: async (parentId) => {
         set({ foldersLoading: true });
         try {
@@ -725,9 +769,6 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-      // =====================================================
-      // CONVERSION
-      // =====================================================
       fetchConversionOperations: async () => {
         try {
           const res = await convApi.listOperations();
@@ -823,9 +864,6 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-      // =====================================================
-      // DRIVES
-      // =====================================================
       refreshPool: async () => {
         try {
           const pool = await drivesApi.getPoolSummary();
@@ -871,9 +909,6 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-      // =====================================================
-      // FILES — uploadFiles dengan handling Drive auth error
-      // =====================================================
       uploadFiles: async (fileList, folderId) => {
         if (fileList.length === 0) return;
 
@@ -909,7 +944,6 @@ export const useYudit = create<YuditState>()(
             done++;
             toast(`"${file.name}" berhasil diunggah`, "success");
           } catch (e) {
-            // Handle Drive auth error spesifik
             if (e instanceof ApiError && e.status === 401) {
               driveAuthErrorCount++;
               const detail = e.detail || "";
@@ -1014,9 +1048,6 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-      // =====================================================
-      // FILTERS
-      // =====================================================
       setCategory: (cat) => {
         set({ currentCategory: cat });
         if (get().currentFolderId) return;
@@ -1068,9 +1099,6 @@ export const useYudit = create<YuditState>()(
 
       setFilterPanelOpen: (open) => set({ filterPanelOpen: open }),
 
-      // =====================================================
-      // MONTHLY
-      // =====================================================
       toggleMonthly: (key) =>
         set((s) => ({
           expandedMonthly: {
@@ -1088,9 +1116,6 @@ export const useYudit = create<YuditState>()(
         set({ expandedMonthly: out });
       },
 
-      // =====================================================
-      // MODALS
-      // =====================================================
       openPreview: (id) => set({ previewFileId: id }),
       closePreview: () => set({ previewFileId: null }),
       openShare: (id) => set({ shareFileId: id }),
@@ -1161,9 +1186,6 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-      // =====================================================
-      // ASSIGN
-      // =====================================================
       openAssignModal: (fileId) => {
         if (!canManageWorkspace(get().user)) {
           toast("Hanya owner atau super admin yang bisa assign", "error");
@@ -1175,17 +1197,11 @@ export const useYudit = create<YuditState>()(
       closeAssignModal: () =>
         set({ assignModalOpen: false, assignModalFileId: null }),
 
-      // =====================================================
-      // EDITOR
-      // =====================================================
       openEditor: (fileId, mode = "local") =>
         set({ editorState: { fileId, mode } }),
 
       closeEditor: () => set({ editorState: null }),
 
-      // =====================================================
-      // CATEGORIES
-      // =====================================================
       setCategoryManagerOpen: (open) => {
         if (open && !canManageWorkspace(get().user)) {
           toast(
@@ -1230,9 +1246,6 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-      // =====================================================
-      // UI
-      // =====================================================
       showConfirm: (title, text, onConfirm) =>
         set({ confirmDialog: { open: true, title, text, onConfirm } }),
 
@@ -1251,9 +1264,6 @@ export const useYudit = create<YuditState>()(
       hideProgress: () =>
         set((s) => ({ progress: { ...s.progress, open: false } })),
 
-      // =====================================================
-      // DRIVE AUTH ERROR
-      // =====================================================
       setDriveAuthError: (email, message) =>
         set({
           driveAuthError: {
@@ -1270,11 +1280,23 @@ export const useYudit = create<YuditState>()(
     }),
     {
       name: "yudit-cloud-store",
+      // ⭐ PERSIST isAuthenticated, user, currentView
+      // Ini kunci supaya /scan dan /transfer tahu sesi SEBELUM render
       partialize: (s) => ({
+        isAuthenticated: s.isAuthenticated,
+        user: s.user,
         currentView: s.currentView,
         filters: s.filters,
         expandedMonthly: s.expandedMonthly,
       }),
+      // ⭐ Hydration callback: setelah localStorage dibaca,
+      // set bootstrapped=true kalau ada token.
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        if (state.isAuthenticated && state.user && getToken()) {
+          state.bootstrapped = true;
+        }
+      },
     },
   ),
 );
