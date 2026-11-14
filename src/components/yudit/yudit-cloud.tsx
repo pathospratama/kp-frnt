@@ -197,6 +197,12 @@ function ViewRouter({ view }: { view: string }) {
       return <CollaboratorsView />;
     case "profile":
       return <ProfileView />;
+    // ⭐ scan & transfer adalah halaman terpisah (/scan, /transfer)
+    // setView sudah redirect ke route terpisah, jadi tidak akan sampai sini
+    // Case ini hanya untuk defensive programming / jika state lama tersimpan
+    case "scan":
+    case "transfer":
+      return <FilesView />;
     default:
       return <FilesView />;
   }
@@ -283,6 +289,21 @@ export function YuditCloud() {
   // ⭐ Semua fetch dibungkus .catch() SILENT agar 401 tidak spam console
   useEffect(() => {
     if (!isAuthenticated || !user) return;
+
+    // ⭐ Defensive: kalau currentView adalah halaman terpisah (scan/transfer)
+    // yang somehow tersimpan di persist state, redirect ke halaman yang sesuai.
+    if (currentView === "scan") {
+      if (typeof window !== "undefined") {
+        window.location.href = "/scan";
+      }
+      return;
+    }
+    if (currentView === "transfer") {
+      if (typeof window !== "undefined") {
+        window.location.href = "/transfer";
+      }
+      return;
+    }
 
     const targetView = canAccessView(user, currentView)
       ? currentView

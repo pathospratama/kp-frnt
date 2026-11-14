@@ -7,7 +7,9 @@ export type ViewKey =
   | "convert"
   | "collaborators"
   | "my-tasks"
-  | "profile";   // ⭐ TAMBAH
+  | "profile"
+  | "scan"
+  | "transfer";
 
 // =====================================================
 // FILE
@@ -22,7 +24,6 @@ export interface FileItem {
   folder_id: string | null;
   folder_name: string | null;
   monthly_folder_id?: string | null;
-  
 
   // ⭐ Nullable — backend bisa kirim null untuk file legacy
   year: number | null;
@@ -64,13 +65,10 @@ export interface DriveAccount {
   display_name?: string | null;
   slot_index: number;
   is_active: boolean;
-  /** ⭐ NEW — backend filter out yang true, tapi tetap disediakan untuk defensiveness */
   is_deleted?: boolean;
   quota_total: number;
   quota_used: number;
-  /** ⭐ NEW — untuk display "Quota diperbarui <tanggal>" */
   quota_updated_at?: string | null;
-  /** ⭐ NEW */
   created_at?: string;
 }
 

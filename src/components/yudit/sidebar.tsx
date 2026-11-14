@@ -1,3 +1,4 @@
+// src/components/yudit/sidebar.tsx
 "use client";
 
 import { motion } from "framer-motion";
@@ -13,8 +14,14 @@ import {
   Users,
   ClipboardCheck,
   User as UserIcon,
+  ScanLine,      // ⭐ NEW — Cam Scanner
+  Crown,         // ⭐ NEW — Transfer Workspace
 } from "lucide-react";
-import { useYudit, canManageWorkspace } from "@/lib/yudit/store";
+import {
+  useYudit,
+  canManageWorkspace,
+  isOwner,
+} from "@/lib/yudit/store";
 import type { ViewKey, UserRole } from "@/lib/yudit/types";
 import { formatBytes } from "@/lib/yudit/utils";
 import { cn } from "@/lib/utils";
@@ -23,10 +30,14 @@ interface NavItem {
   key: ViewKey;
   label: string;
   icon: typeof FolderOpen;
+  /** Optional badge number override (bukan dari getBadge) */
+  badgeCount?: number;
+  /** Kalau true, item hanya tampil untuk owner */
+  ownerOnly?: boolean;
 }
 
 // =====================================================
-// NAV ITEMS — semua role bisa lihat semua menu
+// NAV ITEMS
 // =====================================================
 function getNavItems(role: UserRole | undefined): NavItem[] {
   const base: NavItem[] = [
@@ -40,6 +51,13 @@ function getNavItems(role: UserRole | undefined): NavItem[] {
       icon: ClipboardCheck,
     });
   }
+
+  // ⭐ Cam Scanner — semua role boleh (member upload ke pool owner)
+  base.push({
+    key: "scan",
+    label: "Cam Scanner",
+    icon: ScanLine,
+  });
 
   base.push(
     { key: "convert", label: "Konversi Dokumen", icon: FileCog },
@@ -78,6 +96,7 @@ export function Sidebar() {
 
   const NAV = getNavItems(user?.role);
   const isManager = canManageWorkspace(user);
+  const isOwnerUser = isOwner(user);
   const pct = pool.total > 0 ? Math.round((pool.used / pool.total) * 100) : 0;
 
   const handleLogout = () => {
@@ -115,6 +134,9 @@ export function Sidebar() {
         return collaborators.length > 0 ? collaborators.length : null;
       case "stats":
         return activeCategories > 0 ? activeCategories : null;
+      // ⭐ scan & transfer: tidak ada badge
+      case "scan":
+      case "transfer":
       default:
         return null;
     }
@@ -196,6 +218,30 @@ export function Sidebar() {
                 </button>
               );
             })}
+
+            {/* ⭐ TRANSFER WORKSPACE — HANYA OWNER */}
+            {isOwnerUser && (
+              <button
+                onClick={() => {
+                  setView("transfer");
+                  if (window.innerWidth < 1024) setSidebarOpen(false);
+                }}
+                className={cn(
+                  "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                  "text-[var(--y-warning)] hover:bg-[rgba(245,158,11,0.08)]",
+                )}
+                title="Pindahkan ownership workspace ke user lain"
+              >
+                <Crown
+                  size={17}
+                  className="shrink-0 text-[var(--y-warning)]"
+                />
+                <span className="flex-1 text-left">Transfer Workspace</span>
+                <span className="rounded-full bg-[rgba(245,158,11,0.15)] px-1.5 py-0.5 text-[8px] font-bold text-[var(--y-warning)]">
+                  OWNER
+                </span>
+              </button>
+            )}
           </nav>
         </div>
 

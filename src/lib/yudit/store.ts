@@ -88,10 +88,21 @@ export function defaultViewForRole(user: User | null): ViewKey {
 
 // =====================================================
 // CAN ACCESS VIEW
+// ⭐ Semua role boleh akses scan (cam scanner)
+// ⭐ Hanya owner yang boleh akses transfer
 // =====================================================
 export function canAccessView(user: User | null, view: ViewKey): boolean {
   if (!user) return false;
+
+  // Member hanya bisa akses my-tasks khusus — bukan owner-only feature
   if (view === "my-tasks") return isMember(user);
+
+  // Transfer workspace — HANYA owner
+  if (view === "transfer") return isOwner(user);
+
+  // Scan (cam scanner) — semua role boleh (member upload ke pool owner)
+  // Profile — semua role
+  // Files/Monthly/Stats/Convert/Drives/Collaborators — semua role
   return true;
 }
 
@@ -495,6 +506,7 @@ export const useYudit = create<YuditState>()(
 
       // =====================================================
       // VIEWS
+      // ⭐ SPECIAL CASE: scan & transfer pakai route terpisah
       // =====================================================
       setView: (v) => {
         const user = get().user;
@@ -502,6 +514,24 @@ export const useYudit = create<YuditState>()(
         if (!canAccessView(user, v)) {
           toast("Anda tidak punya akses ke halaman ini.", "error");
           set({ currentView: defaultViewForRole(user), sidebarOpen: false });
+          return;
+        }
+
+        // ⭐ Cam Scanner adalah halaman full-screen terpisah
+        if (v === "scan") {
+          set({ sidebarOpen: false });
+          if (typeof window !== "undefined") {
+            window.location.href = "/scan";
+          }
+          return;
+        }
+
+        // ⭐ Transfer Workspace adalah halaman terpisah
+        if (v === "transfer") {
+          set({ sidebarOpen: false });
+          if (typeof window !== "undefined") {
+            window.location.href = "/transfer";
+          }
           return;
         }
 
@@ -890,27 +920,26 @@ export const useYudit = create<YuditState>()(
                 detail.toLowerCase().includes("revoked");
 
               if (isDriveError) {
-  // Pakai toast wrapper standard (bukan .error)
-  toast(
-    `"${file.name}" gagal upload: Google Drive perlu di-reconnect. ` +
-      `Buka menu "Google Drive" untuk memperbaiki.`,
-    "error",
-  );
+                toast(
+                  `"${file.name}" gagal upload: Google Drive perlu di-reconnect. ` +
+                    `Buka menu "Google Drive" untuk memperbaiki.`,
+                  "error",
+                );
 
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(
-      new CustomEvent("yudit:drive-auth-error", {
-        detail: {
-          email: e.driveEmail,
-          driveId: e.driveId,
-          message: e.detail,
-        },
-      }),
-    );
-  }
-} else {
-  toast(`Gagal upload "${file.name}": ${detail}`, "error");
-}
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(
+                    new CustomEvent("yudit:drive-auth-error", {
+                      detail: {
+                        email: e.driveEmail,
+                        driveId: e.driveId,
+                        message: e.detail,
+                      },
+                    }),
+                  );
+                }
+              } else {
+                toast(`Gagal upload "${file.name}": ${detail}`, "error");
+              }
               continue;
             }
 
