@@ -97,8 +97,7 @@ function parseTransferError(err: unknown): {
       return {
         title: "Status Transfer Tidak Valid",
         message: detail,
-        hint:
-          "Batalkan transfer ini lalu mulai dari awal.",
+        hint: "Batalkan transfer ini lalu mulai dari awal.",
         canReset: true,
       };
     }
@@ -133,9 +132,6 @@ export function TransferView() {
 
   const user = useYudit((s) => s.user);
   const isAuthenticated = useYudit((s) => s.isAuthenticated);
-  const bootstrapAuth = useYudit((s) => s.bootstrapAuth);
-
-  const [bootstrapped, setBootstrapped] = useState(false);
 
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [loading, setLoading] = useState(false);
@@ -156,12 +152,11 @@ export function TransferView() {
 
   const isOwnerUser = isOwner(user);
 
-  // ---- Bootstrap ----
-  useEffect(() => {
-    bootstrapAuth();
-    setBootstrapped(true);
-  }, [bootstrapAuth]);
-
+  // =====================================================
+  // LOAD TRANSFERS
+  // ⚠️ Auth & permission sudah ditangani RequireAuth — di sini
+  //    hanya load data kalau user sudah authenticated & owner.
+  // =====================================================
   const loadTransfers = useCallback(async () => {
     setLoading(true);
     try {
@@ -176,43 +171,14 @@ export function TransferView() {
   }, []);
 
   useEffect(() => {
-    if (!bootstrapped) return;
-    if (!isAuthenticated) {
-      router.replace("/");
-      return;
-    }
-    if (!isOwnerUser) {
-      router.replace("/");
-      return;
-    }
+    // Tunggu auth benar-benar siap
+    if (!isAuthenticated || !isOwnerUser) return;
     void loadTransfers();
-  }, [bootstrapped, isAuthenticated, isOwnerUser, router, loadTransfers]);
+  }, [isAuthenticated, isOwnerUser, loadTransfers]);
 
-  if (!bootstrapped) {
-    return (
-      <div className="yudit-ambient grid min-h-screen place-items-center">
-        <div className="flex items-center gap-2 text-sm text-[var(--y-text-dim)]">
-          <Loader2 size={22} className="animate-spin text-[var(--y-primary)]" />
-          Memeriksa sesi…
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated || !isOwnerUser) {
-    return (
-      <div className="yudit-ambient grid min-h-screen place-items-center">
-        <div className="flex items-center gap-2 text-sm text-[var(--y-text-dim)]">
-          <Loader2 size={22} className="animate-spin text-[var(--y-primary)]" />
-          Mengarahkan…
-        </div>
-      </div>
-    );
-  }
-
-  // ============================================
+  // =====================================================
   // HANDLERS
-  // ============================================
+  // =====================================================
   const loadTransferDetail = async (id: string): Promise<Transfer> => {
     const all = await listTransfers();
     const t = all.find((x) => x.id === id);
@@ -366,9 +332,15 @@ export function TransferView() {
     }
   };
 
-  // ============================================
-  // RENDER
-  // ============================================
+  // =====================================================
+  // ⚠️ NO GUARD DI SINI
+  // RequireAuth sudah menangani:
+  //   - bootstrapAuth
+  //   - redirect kalau belum login
+  //   - redirect kalau bukan owner
+  // Jadi kita bisa langsung render.
+  // =====================================================
+
   return (
     <div className="yudit-ambient flex min-h-screen flex-col">
       <header className="y-glass sticky top-0 z-30 border-b border-[var(--y-border)]">
