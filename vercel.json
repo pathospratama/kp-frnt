@@ -30,7 +30,7 @@
   "rewrites": [
     {
       "source": "/api/backend/:path*",
-      "destination": "https://web-production-c8591.up.railway.app/:path*"
+      "destination": "https://web-production-412274ca.up.railway.app/:path*"
     }
   ]
 }
