@@ -92,7 +92,7 @@ None
   "rewrites": [
     {
       "source": "/api/backend/:path*",
-      "destination": "https://web-production-c8591.up.railway.app/:path*"
+      "destination": "https://web-production-412274ca.up.railway.app/:path*"
     }
   ]
 }
@@ -18077,43 +18077,44 @@ import dynamic from "next/dynamic";
 import { Suspense } from "react";
 import { Loader2, AlertCircle } from "lucide-react";
 
+import { RequireAuth } from "@/components/yudit/auth/require-auth";
+
 const TransferView = dynamic(
   () =>
-    import("@/components/yudit/transfer/transfer-view")
-      .then((m) => {
-        if (!m.TransferView) {
-          throw new Error("Export `TransferView` tidak ditemukan di modul");
-        }
-        return { default: m.TransferView };
-      })
-      .catch((err: Error) => {
-        console.error("[transfer/page] dynamic import gagal:", err);
-        return {
-          default: () => (
-            <div className="yudit-ambient grid min-h-screen place-items-center p-5">
-              <div className="max-w-md rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-6 text-center">
-                <AlertCircle
-                  size={32}
-                  className="mx-auto mb-3 text-[var(--y-danger)]"
-                />
-                <h2 className="text-base font-bold text-[var(--y-text)]">
-                  Gagal Memuat Halaman
-                </h2>
-                <p className="mt-2 break-words text-sm text-[var(--y-text-dim)]">
-                  {err?.message ||
-                    "Terjadi kesalahan saat memuat modul transfer."}
-                </p>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-xs font-semibold text-[var(--y-text)] hover:bg-[var(--y-bg-hover)]"
-                >
-                  Reload Halaman
-                </button>
-              </div>
+    import("@/components/yudit/transfer/transfer-view").then((m) => {
+      if (!m.TransferView) {
+        throw new Error("Export `TransferView` tidak ditemukan di modul");
+      }
+      return { default: m.TransferView };
+    })
+    .catch((err: Error) => {
+      console.error("[transfer/page] dynamic import gagal:", err);
+      return {
+        default: () => (
+          <div className="yudit-ambient grid min-h-screen place-items-center p-5">
+            <div className="max-w-md rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-6 text-center">
+              <AlertCircle
+                size={32}
+                className="mx-auto mb-3 text-[var(--y-danger)]"
+              />
+              <h2 className="text-base font-bold text-[var(--y-text)]">
+                Gagal Memuat Halaman
+              </h2>
+              <p className="mt-2 break-words text-sm text-[var(--y-text-dim)]">
+                {err?.message ||
+                  "Terjadi kesalahan saat memuat modul transfer."}
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-xs font-semibold text-[var(--y-text)] hover:bg-[var(--y-bg-hover)]"
+              >
+                Reload Halaman
+              </button>
             </div>
-          ),
-        };
-      }),
+          </div>
+        ),
+      };
+    }),
   {
     ssr: false,
     loading: () => (
@@ -18126,15 +18127,20 @@ const TransferView = dynamic(
 
 export default function TransferPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="yudit-ambient grid min-h-screen place-items-center">
-          <Loader2 size={28} className="animate-spin text-[var(--y-primary)]" />
-        </div>
-      }
-    >
-      <TransferView />
-    </Suspense>
+    <RequireAuth requireOwner>
+      <Suspense
+        fallback={
+          <div className="yudit-ambient grid min-h-screen place-items-center">
+            <Loader2
+              size={28}
+              className="animate-spin text-[var(--y-primary)]"
+            />
+          </div>
+        }
+      >
+        <TransferView />
+      </Suspense>
+    </RequireAuth>
   );
 }
 
@@ -18148,6 +18154,8 @@ import dynamic from "next/dynamic";
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 
+import { RequireAuth } from "@/components/yudit/auth/require-auth";
+
 const CamScannerView = dynamic(
   () =>
     import("@/components/yudit/scan/cam-scanner-view").then(
@@ -18158,17 +18166,23 @@ const CamScannerView = dynamic(
 
 export default function ScanPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="yudit-ambient grid min-h-screen place-items-center">
-          <Loader2 size={28} className="animate-spin text-[var(--y-primary)]" />
-        </div>
-      }
-    >
-      <CamScannerView />
-    </Suspense>
+    <RequireAuth>
+      <Suspense
+        fallback={
+          <div className="yudit-ambient grid min-h-screen place-items-center">
+            <Loader2
+              size={28}
+              className="animate-spin text-[var(--y-primary)]"
+            />
+          </div>
+        }
+      >
+        <CamScannerView />
+      </Suspense>
+    </RequireAuth>
   );
 }
+
 
 
 ===== FILE: src/app/api/route.ts =====
@@ -26342,97 +26356,378 @@ function IconBtn({
 
 
 
+===== FILE: src/components/yudit/auth/require-auth.tsx =====
+// src/components/yudit/auth/require-auth.tsx
+"use client";
+
+import { useEffect, useLayoutEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+
+import { useYudit, isOwner, defaultViewForRole } from "@/lib/yudit/store";
+
+interface RequireAuthProps {
+  children: React.ReactNode;
+  /** Jika true, hanya role owner yang boleh masuk */
+  requireOwner?: boolean;
+  /** Redirect jika belum login */
+  redirectTo?: string;
+}
+
+/**
+ * Guard untuk halaman private yang dibuka langsung via URL (/scan, /transfer).
+ *
+ * Kenapa versi lama bug (redirect ke /?view=files):
+ * - Zustand TIDAK persist isAuthenticated/user, jadi saat page load
+ *   isAuthenticated=false sampai bootstrapAuth() selesai.
+ * - useEffect [ready, isAuthenticated] membaca isAuthenticated dari
+ *   closure lama (false) → router.replace("/") padahal sesi VALID.
+ *
+ * Perbaikan:
+ * - isAuthenticated & user DIPERSIST di localStorage (lihat store.ts).
+ * - Zustand hydration selesai SEBELUM render pertama → isAuthenticated
+ *   sudah benar di render pertama.
+ * - bootstrapAuth() dipanggil di useLayoutEffect (sync) untuk catch
+ *   perubahan terbaru dari token (misal token dihapus di tab lain).
+ * - Redirect baru dilakukan setelah bootstrapped=true.
+ */
+export function RequireAuth({
+  children,
+  requireOwner = false,
+  redirectTo,
+}: RequireAuthProps) {
+  const router = useRouter();
+
+  const isAuthenticated = useYudit((s) => s.isAuthenticated);
+  const user = useYudit((s) => s.user);
+  const bootstrapped = useYudit((s) => s.bootstrapped);
+  const bootstrapAuth = useYudit((s) => s.bootstrapAuth);
+
+  // ⭐ Bootstrap SEBELUM paint (useLayoutEffect) — hindari race
+  useLayoutEffect(() => {
+    bootstrapAuth();
+  }, [bootstrapAuth]);
+
+  const ownerOk = !requireOwner || isOwner(user);
+  const finalRedirect = redirectTo || "/";
+
+  useEffect(() => {
+    // ⭐ Tunggu bootstrapped benar-benar selesai
+    if (!bootstrapped) return;
+
+    if (!isAuthenticated) {
+      router.replace(finalRedirect);
+      return;
+    }
+
+    if (!ownerOk) {
+      // Redirect ke default view untuk role user (bukan paksa /)
+      const targetView = defaultViewForRole(user);
+      const targetUrl =
+        finalRedirect && finalRedirect !== "/"
+          ? finalRedirect
+          : `/?view=${targetView}`;
+      router.replace(targetUrl);
+    }
+  }, [bootstrapped, isAuthenticated, ownerOk, user, router, finalRedirect]);
+
+  // ─────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────
+
+  // Loading: tunggu Zustand hydration + bootstrapAuth
+  if (!bootstrapped) {
+    return (
+      <div className="yudit-ambient grid min-h-screen place-items-center">
+        <div className="flex items-center gap-2 text-sm text-[var(--y-text-dim)]">
+          <Loader2
+            size={22}
+            className="animate-spin text-[var(--y-primary)]"
+          />
+          Memeriksa sesi…
+        </div>
+      </div>
+    );
+  }
+
+  // Belum login → tunggu redirect
+  if (!isAuthenticated) {
+    return (
+      <div className="yudit-ambient grid min-h-screen place-items-center">
+        <div className="flex items-center gap-2 text-sm text-[var(--y-text-dim)]">
+          <Loader2
+            size={22}
+            className="animate-spin text-[var(--y-primary)]"
+          />
+          Mengarahkan…
+        </div>
+      </div>
+    );
+  }
+
+  // Login tapi tidak berhak (misal member buka /transfer)
+  if (!ownerOk) {
+    return (
+      <div className="yudit-ambient grid min-h-screen place-items-center">
+        <div className="flex items-center gap-2 text-sm text-[var(--y-text-dim)]">
+          <Loader2
+            size={22}
+            className="animate-spin text-[var(--y-primary)]"
+          />
+          Mengarahkan…
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+
+
 ===== FILE: src/components/yudit/transfer/transfer-view.tsx =====
 // src/components/yudit/transfer/transfer-view.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, Copy, Crown,
-  Loader2, Mail, RefreshCw, ShieldAlert, Users, UserPlus, XCircle,
-  ChevronDown, ChevronUp, Clock, X, KeyRound, Upload, Info,
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  Copy,
+  Crown,
+  KeyRound,
+  Loader2,
+  Mail,
+  RefreshCw,
+  ShieldAlert,
+  UserPlus,
+  X,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  cancelTransfer, executeTransfer, listTransfers, requestTransfer,
-  verifyTransfer, type Transfer, type TransferStatus,
+  cancelTransfer,
+  executeTransfer,
+  listTransfers,
+  requestTransfer,
+  verifyTransfer,
+  type Transfer,
+  type TransferStatus,
 } from "@/lib/api/transfer";
 import { useYudit, isOwner } from "@/lib/yudit/store";
 import { formatDateTime } from "@/lib/yudit/utils";
-import { cn } from "@/lib/utils";
+import { ApiError } from "@/lib/api/client";
 
 type Step = "intro" | "target" | "verify" | "confirm" | "executing" | "done";
 
+// =====================================================
+// ERROR PARSER
+// =====================================================
+function parseTransferError(err: unknown): {
+  title: string;
+  message: string;
+  hint?: string;
+  canReset: boolean;
+} {
+  if (err instanceof ApiError) {
+    const detail = err.detail || "";
+    const lower = detail.toLowerCase();
+
+    if (lower.includes("belum terdaftar")) {
+      return {
+        title: "User Belum Terdaftar",
+        message: detail,
+        hint:
+          "Minta user target untuk mendaftar dulu di DPRD Cloud " +
+          "menggunakan email tersebut, lalu coba transfer lagi.",
+        canReset: false,
+      };
+    }
+
+    if (lower.includes("bukan owner") || lower.includes("member")) {
+      return {
+        title: "Target Bukan Owner",
+        message: detail,
+        hint:
+          "Target harus OWNER di workspace-nya sendiri. " +
+          "Kalau dia member di workspace Anda, minta dia daftar " +
+          "email baru sebagai owner, ATAU batalkan transfer ini " +
+          "dan pilih target owner lain.",
+        canReset: true,
+      };
+    }
+
+    if (lower.includes("tidak bisa transfer ke akun sendiri")) {
+      return {
+        title: "Email Tidak Valid",
+        message: detail,
+        hint: "Gunakan email user lain yang terdaftar sebagai OWNER.",
+        canReset: false,
+      };
+    }
+
+    if (lower.includes("sudah ada transfer")) {
+      return {
+        title: "Transfer Sudah Berjalan",
+        message: detail,
+        hint:
+          "Batalkan transfer yang sedang berjalan dulu di halaman ini, " +
+          "atau tunggu sampai selesai.",
+        canReset: false,
+      };
+    }
+
+    if (lower.includes("harus berstatus")) {
+      return {
+        title: "Status Transfer Tidak Valid",
+        message: detail,
+        hint: "Batalkan transfer ini lalu mulai dari awal.",
+        canReset: true,
+      };
+    }
+
+    if (err.status === 403) {
+      return {
+        title: "Akses Ditolak",
+        message: detail || "Hanya owner workspace yang bisa transfer.",
+        canReset: false,
+      };
+    }
+
+    return {
+      title: "Gagal Memproses",
+      message: detail || "Terjadi kesalahan.",
+      canReset: false,
+    };
+  }
+
+  return {
+    title: "Gagal Memproses",
+    message: err instanceof Error ? err.message : "Terjadi kesalahan.",
+    canReset: false,
+  };
+}
+
+// =====================================================
+// MAIN
+// =====================================================
 export function TransferView() {
   const router = useRouter();
+
   const user = useYudit((s) => s.user);
+  const isAuthenticated = useYudit((s) => s.isAuthenticated);
 
   const [transfers, setTransfers] = useState<Transfer[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [activeTransfer, setActiveTransfer] = useState<Transfer | null>(null);
   const [step, setStep] = useState<Step>("intro");
 
-  // Form states
   const [targetEmail, setTargetEmail] = useState("");
   const [reason, setReason] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const [inlineError, setInlineError] = useState<{
+    title: string;
+    message: string;
+    hint?: string;
+    canReset: boolean;
+  } | null>(null);
+
   const isOwnerUser = isOwner(user);
 
-  useEffect(() => {
-    if (!isOwnerUser) {
-      router.push("/");
-      return;
-    }
-    loadTransfers();
-  }, [isOwnerUser, router]);
-
-  const loadTransfers = async () => {
+  // =====================================================
+  // LOAD TRANSFERS
+  // ⚠️ Auth & permission sudah ditangani RequireAuth — di sini
+  //    hanya load data kalau user sudah authenticated & owner.
+  // =====================================================
+  const loadTransfers = useCallback(async () => {
     setLoading(true);
     try {
       const res = await listTransfers();
       setTransfers(res);
-    } catch (e: any) {
-      toast.error(e?.detail || "Gagal memuat riwayat transfer");
+    } catch (e: unknown) {
+      const err = e as { detail?: string };
+      toast.error(err?.detail || "Gagal memuat riwayat transfer");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleRequest = async () => {
-    if (!targetEmail.trim()) {
-      toast.error("Masukkan email tujuan");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const res = await requestTransfer({
-        target_email: targetEmail.trim(),
-        reason: reason.trim() || undefined,
-      });
-      toast.success(
-        `Kode verifikasi dikirim ke ${user?.email}. Berlaku ${res.message.includes("30 menit") ? "30 menit" : "sementara"}.`,
-        { duration: 8000 },
-      );
-      const detail = await loadTransferDetail(res.transfer_id);
-      setActiveTransfer(detail);
-      setStep("verify");
-    } catch (e: any) {
-      toast.error(e?.detail || "Gagal membuat request");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  useEffect(() => {
+    // Tunggu auth benar-benar siap
+    if (!isAuthenticated || !isOwnerUser) return;
+    void loadTransfers();
+  }, [isAuthenticated, isOwnerUser, loadTransfers]);
 
+  // =====================================================
+  // HANDLERS
+  // =====================================================
   const loadTransferDetail = async (id: string): Promise<Transfer> => {
     const all = await listTransfers();
     const t = all.find((x) => x.id === id);
     if (!t) throw new Error("Transfer tidak ditemukan");
     return t;
+  };
+
+  const handleRequest = async () => {
+    setInlineError(null);
+
+    const email = targetEmail.trim().toLowerCase();
+
+    if (!email) {
+      setInlineError({
+        title: "Email Kosong",
+        message: "Masukkan email tujuan transfer.",
+        canReset: false,
+      });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setInlineError({
+        title: "Format Email Tidak Valid",
+        message: "Email tidak sesuai format standar.",
+        hint: "Contoh: nama@domain.com",
+        canReset: false,
+      });
+      return;
+    }
+    if (email === (user?.email || "").toLowerCase()) {
+      setInlineError({
+        title: "Email Sama dengan Anda",
+        message: "Tidak bisa transfer ke akun sendiri.",
+        hint: "Gunakan email user lain.",
+        canReset: false,
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await requestTransfer({
+        target_email: email,
+        reason: reason.trim() || undefined,
+      });
+      toast.success(
+        `Kode verifikasi dikirim ke ${user?.email}. ` +
+          `Berlaku ${res.message.includes("30 menit") ? "30 menit" : "sementara"}.`,
+        { duration: 8000 },
+      );
+      const detail = await loadTransferDetail(res.transfer_id);
+      setActiveTransfer(detail);
+      setInlineError(null);
+      setStep("verify");
+    } catch (e: unknown) {
+      const parsed = parseTransferError(e);
+      setInlineError(parsed);
+      toast.error(parsed.message, { duration: 8000 });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleVerify = async () => {
@@ -26442,8 +26737,9 @@ export function TransferView() {
       return;
     }
     setSubmitting(true);
+    setInlineError(null);
     try {
-      const res = await verifyTransfer({
+      await verifyTransfer({
         transfer_id: activeTransfer.id,
         code: verificationCode.trim(),
       });
@@ -26451,8 +26747,9 @@ export function TransferView() {
       setStep("confirm");
       const updated = await loadTransferDetail(activeTransfer.id);
       setActiveTransfer(updated);
-    } catch (e: any) {
-      toast.error(e?.detail || "Kode salah", { duration: 6000 });
+    } catch (e: unknown) {
+      const parsed = parseTransferError(e);
+      toast.error(parsed.message, { duration: 6000 });
     } finally {
       setSubmitting(false);
     }
@@ -26460,14 +26757,28 @@ export function TransferView() {
 
   const handleExecute = async () => {
     if (!activeTransfer) return;
+    setInlineError(null);
     setStep("executing");
+
     try {
-      const res = await executeTransfer(activeTransfer.id);
+      await executeTransfer(activeTransfer.id);
       toast.success("Workspace berhasil dipindahkan!");
       setStep("done");
       await loadTransfers();
-    } catch (e: any) {
-      toast.error(e?.detail || "Gagal eksekusi transfer", { duration: 8000 });
+    } catch (e: unknown) {
+      const parsed = parseTransferError(e);
+      setInlineError(parsed);
+      toast.error(parsed.message, { duration: 8000 });
+
+      // Reload detail untuk dapat status terbaru
+      try {
+        const fresh = await loadTransferDetail(activeTransfer.id);
+        setActiveTransfer(fresh);
+      } catch {
+        /* ignore */
+      }
+
+      // Kembali ke step confirm agar user bisa cancel / arahkan
       setStep("confirm");
     }
   };
@@ -26482,23 +26793,42 @@ export function TransferView() {
       toast.success("Transfer dibatalkan");
       setActiveTransfer(null);
       setStep("intro");
+      setInlineError(null);
       await loadTransfers();
-    } catch (e: any) {
-      toast.error(e?.detail || "Gagal cancel");
+    } catch (e: unknown) {
+      const parsed = parseTransferError(e);
+      toast.error(parsed.message);
     }
   };
 
-  const resetFlow = () => {
-    setStep("intro");
-    setActiveTransfer(null);
-    setTargetEmail("");
-    setReason("");
-    setVerificationCode("");
+  const copyError = async (err: {
+    title: string;
+    message: string;
+    hint?: string;
+  }) => {
+    const text = [
+      err.title,
+      "",
+      err.message,
+      err.hint ? `\nHint: ${err.hint}` : "",
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Pesan error disalin");
+    } catch {
+      toast.error("Gagal menyalin pesan");
+    }
   };
 
-  // ============================================
-  // RENDER
-  // ============================================
+  // =====================================================
+  // ⚠️ NO GUARD DI SINI
+  // RequireAuth sudah menangani:
+  //   - bootstrapAuth
+  //   - redirect kalau belum login
+  //   - redirect kalau bukan owner
+  // Jadi kita bisa langsung render.
+  // =====================================================
+
   return (
     <div className="yudit-ambient flex min-h-screen flex-col">
       <header className="y-glass sticky top-0 z-30 border-b border-[var(--y-border)]">
@@ -26536,13 +26866,23 @@ export function TransferView() {
                     Mulai Transfer Baru
                   </h2>
                   <button
-                    onClick={() => setStep("target")}
+                    onClick={() => {
+                      setInlineError(null);
+                      setStep("target");
+                    }}
                     className="y-gradient-brand y-glow-primary inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-white transition-all hover:-translate-y-0.5"
                   >
                     <UserPlus size={16} />
                     Mulai Transfer
                   </button>
                 </div>
+
+                {loading && transfers.length === 0 && (
+                  <div className="flex items-center justify-center py-6 text-xs text-[var(--y-text-mute)]">
+                    <Loader2 size={14} className="mr-2 animate-spin" />
+                    Memuat riwayat…
+                  </div>
+                )}
 
                 {transfers.length > 0 && (
                   <div className="rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-5">
@@ -26556,6 +26896,7 @@ export function TransferView() {
                           transfer={t}
                           onResume={(tr) => {
                             setActiveTransfer(tr);
+                            setInlineError(null);
                             if (tr.status === "pending") setStep("verify");
                             else if (tr.status === "verified")
                               setStep("confirm");
@@ -26579,6 +26920,15 @@ export function TransferView() {
                 <h2 className="mb-4 text-base font-bold text-[var(--y-text)]">
                   Masukkan Email Target
                 </h2>
+
+                {inlineError && (
+                  <ErrorBanner
+                    err={inlineError}
+                    onClose={() => setInlineError(null)}
+                    onCopy={() => copyError(inlineError)}
+                  />
+                )}
+
                 <div className="space-y-4">
                   <div>
                     <label className="mb-1.5 block text-[11px] font-bold uppercase text-[var(--y-text-mute)]">
@@ -26587,13 +26937,17 @@ export function TransferView() {
                     <input
                       type="email"
                       value={targetEmail}
-                      onChange={(e) => setTargetEmail(e.target.value)}
+                      onChange={(e) => {
+                        setTargetEmail(e.target.value);
+                        if (inlineError) setInlineError(null);
+                      }}
                       placeholder="nama@domain.com"
                       autoFocus
                       className="y-focus h-11 w-full rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] px-3 text-sm text-[var(--y-text)] outline-none"
                     />
                     <p className="mt-1 text-[11px] text-[var(--y-text-mute)]">
-                      User harus sudah terdaftar sebagai OWNER di aplikasi ini.
+                      User harus <b>sudah terdaftar sebagai OWNER</b> (bukan
+                      member) di aplikasi ini.
                     </p>
                   </div>
                   <div>
@@ -26610,7 +26964,10 @@ export function TransferView() {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => setStep("intro")}
+                      onClick={() => {
+                        setInlineError(null);
+                        setStep("intro");
+                      }}
                       className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] text-sm font-semibold text-[var(--y-text-dim)] hover:bg-[var(--y-bg-hover)]"
                     >
                       <ArrowLeft size={14} />
@@ -26642,12 +26999,15 @@ export function TransferView() {
                 className="rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-5"
               >
                 <div className="mb-4 flex items-start gap-3 rounded-xl border border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.08)] p-3">
-                  <ShieldAlert size={18} className="mt-0.5 shrink-0 text-[var(--y-warning)]" />
+                  <ShieldAlert
+                    size={18}
+                    className="mt-0.5 shrink-0 text-[var(--y-warning)]"
+                  />
                   <div className="text-[12px] leading-relaxed text-[var(--y-warning)]">
                     <b>Kode dikirim ke email {user?.email}</b>
                     <br />
-                    Buka email Anda, salin kode 6 digit, dan masukkan di bawah.
-                    JANGAN bagikan kode ini ke siapa pun.
+                    Buka email Anda, salin kode 6 digit, dan masukkan di
+                    bawah. JANGAN bagikan kode ini ke siapa pun.
                   </div>
                 </div>
 
@@ -26659,7 +27019,9 @@ export function TransferView() {
                   inputMode="numeric"
                   value={verificationCode}
                   onChange={(e) =>
-                    setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                    setVerificationCode(
+                      e.target.value.replace(/\D/g, "").slice(0, 6),
+                    )
                   }
                   placeholder="000000"
                   maxLength={6}
@@ -26669,10 +27031,13 @@ export function TransferView() {
 
                 <div className="mt-1.5 flex items-center justify-between text-[11px]">
                   <span className="text-[var(--y-text-mute)]">
-                    Sisa percobaan: {activeTransfer.max_attempts - activeTransfer.code_attempts}
+                    Sisa percobaan:{" "}
+                    {activeTransfer.max_attempts -
+                      activeTransfer.code_attempts}
                   </span>
                   <span className="text-[var(--y-text-mute)]">
-                    Kode berlaku s/d {formatDateTime(activeTransfer.code_expires_at)}
+                    Kode berlaku s/d{" "}
+                    {formatDateTime(activeTransfer.code_expires_at)}
                   </span>
                 </div>
 
@@ -26718,32 +27083,65 @@ export function TransferView() {
                       Konfirmasi Terakhir
                     </h2>
                     <p className="mt-1 text-[12px] text-[var(--y-text-dim)]">
-                      Tindakan ini akan memindahkan SELURUH workspace Anda ke user
-                      lain. Anda akan menjadi MEMBER di workspace tersebut.
+                      Tindakan ini akan memindahkan SELURUH workspace Anda ke
+                      user lain. Anda akan menjadi MEMBER di workspace
+                      tersebut.
                     </p>
                   </div>
                 </div>
 
+                {/* Error banner setelah execute gagal */}
+                {inlineError && (
+                  <ErrorBanner
+                    err={inlineError}
+                    onClose={() => setInlineError(null)}
+                    onCopy={() => copyError(inlineError)}
+                  />
+                )}
+
                 <div className="mb-4 space-y-1.5 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] p-4 text-[12.5px]">
-                  <Row label="Dari" value={`${activeTransfer.from_owner_username} (${activeTransfer.from_owner_email})`} />
-                  <Row label="Ke" value={`${activeTransfer.to_owner_username} (${activeTransfer.to_owner_email})`} />
+                  <Row
+                    label="Dari"
+                    value={`${activeTransfer.from_owner_username} (${activeTransfer.from_owner_email})`}
+                  />
+                  <Row
+                    label="Ke"
+                    value={`${activeTransfer.to_owner_username} (${activeTransfer.to_owner_email})`}
+                  />
                   {activeTransfer.snapshot_before && (
                     <>
                       <div className="my-2 border-t border-[var(--y-border-soft)]" />
                       <Row
                         label="Drive"
-                        value={`${(activeTransfer.snapshot_before as any).drives || 0} akun Google Drive`}
+                        value={`${
+                          (activeTransfer.snapshot_before as {
+                            drives?: number;
+                          }).drives || 0
+                        } akun Google Drive`}
                       />
                       <Row
                         label="Collaborator"
-                        value={`${(activeTransfer.snapshot_before as any).collaborators || 0} user`}
+                        value={`${
+                          (activeTransfer.snapshot_before as {
+                            collaborators?: number;
+                          }).collaborators || 0
+                        } user`}
                       />
                       <Row
                         label="File"
-                        value={`${(activeTransfer.snapshot_before as any).files || 0} file`}
+                        value={`${
+                          (activeTransfer.snapshot_before as {
+                            files?: number;
+                          }).files || 0
+                        } file`}
                       />
                     </>
                   )}
+                  <div className="my-2 border-t border-[var(--y-border-soft)]" />
+                  <Row
+                    label="Status"
+                    value={activeTransfer.status.toUpperCase()}
+                  />
                 </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row">
@@ -26752,11 +27150,14 @@ export function TransferView() {
                     className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--y-border)] bg-[var(--y-bg)] text-sm font-semibold text-[var(--y-text-dim)] hover:bg-[var(--y-bg-hover)]"
                   >
                     <X size={14} />
-                    Batalkan Transfer
+                    {inlineError?.canReset
+                      ? "Batalkan & Mulai Ulang"
+                      : "Batalkan Transfer"}
                   </button>
                   <button
                     onClick={handleExecute}
-                    className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--y-danger)] text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-[#dc2626]"
+                    disabled={activeTransfer.status !== "verified"}
+                    className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--y-danger)] text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-[#dc2626] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                   >
                     <CheckCircle2 size={16} />
                     Ya, Transfer Sekarang
@@ -26780,8 +27181,8 @@ export function TransferView() {
                   Memindahkan Workspace…
                 </h2>
                 <p className="mt-1 text-[12px] text-[var(--y-text-dim)]">
-                  Mohon tunggu, sedang memindahkan file, drive, dan collaborator.
-                  Jangan tutup halaman ini.
+                  Mohon tunggu, sedang memindahkan file, drive, dan
+                  collaborator. Jangan tutup halaman ini.
                 </p>
               </motion.div>
             )}
@@ -26826,11 +27227,64 @@ export function TransferView() {
 // =====================================================
 // SUB-COMPONENTS
 // =====================================================
+function ErrorBanner({
+  err,
+  onClose,
+  onCopy,
+}: {
+  err: { title: string; message: string; hint?: string };
+  onClose: () => void;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="mb-4 rounded-xl border border-[rgba(239,68,68,0.3)] bg-[rgba(239,68,68,0.06)] p-3">
+      <div className="flex items-start gap-2">
+        <AlertTriangle
+          size={16}
+          className="mt-0.5 shrink-0 text-[var(--y-danger)]"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-[12.5px] font-bold text-[var(--y-danger)]">
+            {err.title}
+          </p>
+          <p className="mt-0.5 text-[12px] leading-relaxed text-[var(--y-text-dim)]">
+            {err.message}
+          </p>
+          {err.hint && (
+            <p className="mt-1.5 text-[11px] italic text-[var(--y-text-mute)]">
+              💡 {err.hint}
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <button
+            onClick={onCopy}
+            title="Salin pesan"
+            className="grid h-6 w-6 place-items-center rounded text-[var(--y-text-mute)] hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)]"
+          >
+            <Copy size={12} />
+          </button>
+          <button
+            onClick={onClose}
+            title="Tutup"
+            className="grid h-6 w-6 place-items-center rounded text-[var(--y-text-mute)] hover:bg-[var(--y-bg-hover)] hover:text-[var(--y-text)]"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InfoCard() {
   return (
     <div className="rounded-2xl border border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.05)] p-5">
       <div className="mb-3 flex items-start gap-3">
-        <AlertTriangle size={22} className="mt-0.5 shrink-0 text-[var(--y-warning)]" />
+        <AlertTriangle
+          size={22}
+          className="mt-0.5 shrink-0 text-[var(--y-warning)]"
+        />
         <div>
           <h2 className="text-base font-bold text-[var(--y-text)]">
             Perhatian
@@ -26845,16 +27299,32 @@ function InfoCard() {
 
       <div className="space-y-1.5 text-[12px] text-[var(--y-text-dim)]">
         <div className="flex items-start gap-2">
-          <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-[var(--y-success)]" />
-          <span>Kode verifikasi dikirim ke email <b>Anda</b> (bukan ke target)</span>
+          <CheckCircle2
+            size={14}
+            className="mt-0.5 shrink-0 text-[var(--y-success)]"
+          />
+          <span>
+            Kode verifikasi dikirim ke email <b>Anda</b> (bukan ke target)
+          </span>
         </div>
         <div className="flex items-start gap-2">
-          <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-[var(--y-success)]" />
-          <span>Target harus sudah terdaftar sebagai OWNER di aplikasi</span>
+          <CheckCircle2
+            size={14}
+            className="mt-0.5 shrink-0 text-[var(--y-success)]"
+          />
+          <span>
+            Target <b>harus OWNER</b> di workspace-nya sendiri —{" "}
+            <b>bukan member</b> di workspace Anda
+          </span>
         </div>
         <div className="flex items-start gap-2">
-          <XCircle size={14} className="mt-0.5 shrink-0 text-[var(--y-danger)]" />
-          <span>Tindakan ini <b>tidak bisa dibatalkan</b> setelah eksekusi</span>
+          <XCircle
+            size={14}
+            className="mt-0.5 shrink-0 text-[var(--y-danger)]"
+          />
+          <span>
+            Tindakan ini <b>tidak bisa dibatalkan</b> setelah eksekusi
+          </span>
         </div>
       </div>
     </div>
@@ -26868,17 +27338,19 @@ function TransferRow({
   transfer: Transfer;
   onResume: (t: Transfer) => void;
 }) {
-  const statusMeta: Record<TransferStatus, { label: string; color: string }> = {
-    pending: { label: "Menunggu Verifikasi", color: "#f59e0b" },
-    verified: { label: "Siap Dieksekusi", color: "#22d3ee" },
-    executing: { label: "Sedang Diproses", color: "#6366f1" },
-    completed: { label: "Selesai", color: "#10b981" },
-    failed: { label: "Gagal", color: "#ef4444" },
-    cancelled: { label: "Dibatalkan", color: "#94a3b8" },
-    expired: { label: "Kadaluarsa", color: "#94a3b8" },
-  };
+  const statusMeta: Record<TransferStatus, { label: string; color: string }> =
+    {
+      pending: { label: "Menunggu Verifikasi", color: "#f59e0b" },
+      verified: { label: "Siap Dieksekusi", color: "#22d3ee" },
+      executing: { label: "Sedang Diproses", color: "#6366f1" },
+      completed: { label: "Selesai", color: "#10b981" },
+      failed: { label: "Gagal", color: "#ef4444" },
+      cancelled: { label: "Dibatalkan", color: "#94a3b8" },
+      expired: { label: "Kadaluarsa", color: "#94a3b8" },
+    };
   const meta = statusMeta[transfer.status] || statusMeta.pending;
-  const canResume = transfer.status === "pending" || transfer.status === "verified";
+  const canResume =
+    transfer.status === "pending" || transfer.status === "verified";
 
   return (
     <div className="flex items-center gap-3 rounded-lg border border-[var(--y-border)] bg-[var(--y-bg)] p-3">
@@ -26918,6 +27390,7 @@ function Row({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
 
 
 ===== FILE: src/components/yudit/modals/create-folder-modal.tsx =====
@@ -28521,6 +28994,8 @@ interface LocalPage {
   uploadProgress: number;
 }
 
+type Facing = "environment" | "user";
+
 // =====================================================
 // MAIN
 // =====================================================
@@ -28547,18 +29022,16 @@ export function CamScannerView() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const startingRef = useRef(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [cameraFacing, setCameraFacing] = useState<"environment" | "user">(
-    "environment",
-  );
+  const [cameraFacing, setCameraFacing] = useState<Facing>("environment");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // =====================================================
   // STOP CAMERA — safe, idempotent
   // =====================================================
   const stopCamera = useCallback(() => {
-    // Stop via ref (paling reliable)
     if (streamRef.current) {
       try {
         streamRef.current.getTracks().forEach((t) => t.stop());
@@ -28567,127 +29040,190 @@ export function CamScannerView() {
       }
       streamRef.current = null;
     }
-    // Fallback: stop via video element
     const v = videoRef.current;
-    if (v && v.srcObject) {
+    if (v) {
       try {
-        const stream = v.srcObject as MediaStream;
-        stream.getTracks().forEach((t) => t.stop());
+        v.pause();
       } catch {
         /* ignore */
       }
-      v.srcObject = null;
+      try {
+        v.srcObject = null;
+      } catch {
+        /* ignore */
+      }
+      v.onloadedmetadata = null;
     }
     setCameraActive(false);
   }, []);
 
   // =====================================================
-  // START CAMERA — robust with detailed error handling
+  // START CAMERA — robust
+  // Terima param `facing` agar switch kamera bekerja akurat
   // =====================================================
-  const startCamera = useCallback(async () => {
-    setCameraError(null);
+  const startCamera = useCallback(
+    async (facing?: Facing) => {
+      if (startingRef.current) return;
+      startingRef.current = true;
 
-    // 1. Cek secure context (HTTPS atau localhost)
-    if (typeof window !== "undefined" && !window.isSecureContext) {
-      const msg =
-        "Kamera hanya bisa diakses via HTTPS. " +
-        "Gunakan Impor dari Galeri sebagai alternatif, " +
-        "atau hubungi admin untuk mengaktifkan HTTPS.";
-      setCameraError(msg);
-      toast.error(msg, { duration: 8000 });
-      return;
-    }
+      setCameraError(null);
+      const facingMode = facing ?? cameraFacing;
 
-    // 2. Cek navigator.mediaDevices support
-    if (
-      typeof navigator === "undefined" ||
-      !navigator.mediaDevices ||
-      typeof navigator.mediaDevices.getUserMedia !== "function"
-    ) {
-      const msg =
-        "Browser tidak mendukung akses kamera. " +
-        "Coba update browser (Chrome/Safari/Firefox terbaru), " +
-        "atau gunakan Impor dari Galeri.";
-      setCameraError(msg);
-      toast.error(msg, { duration: 8000 });
-      return;
-    }
+      // 1. Cek secure context
+      if (typeof window !== "undefined" && !window.isSecureContext) {
+        const msg =
+          "Kamera hanya bisa diakses via HTTPS. " +
+          "Gunakan Impor dari Galeri sebagai alternatif, " +
+          "atau hubungi admin untuk mengaktifkan HTTPS.";
+        setCameraError(msg);
+        toast.error(msg, { duration: 8000 });
+        startingRef.current = false;
+        return;
+      }
 
-    // 3. Coba buka kamera
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: cameraFacing },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-        audio: false,
-      });
-      streamRef.current = stream;
+      // 2. Cek navigator.mediaDevices
+      if (
+        typeof navigator === "undefined" ||
+        !navigator.mediaDevices ||
+        typeof navigator.mediaDevices.getUserMedia !== "function"
+      ) {
+        const msg =
+          "Browser tidak mendukung akses kamera. " +
+          "Coba update browser (Chrome/Safari/Firefox terbaru), " +
+          "atau gunakan Impor dari Galeri.";
+        setCameraError(msg);
+        toast.error(msg, { duration: 8000 });
+        startingRef.current = false;
+        return;
+      }
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        try {
-          await videoRef.current.play();
-        } catch {
-          // Beberapa browser melempar error kalau play() dipanggil sebelum
-          // metadata video siap. Ini aman diabaikan — video akan auto-play
-          // setelah metadata loaded.
+      // 3. Bersihkan stream lama
+      stopCamera();
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+          audio: false,
+        });
+
+        // ⭐ PENTING: JANGAN set videoRef.current.srcObject di sini.
+        // Saat cameraActive masih false, elemen <video> belum di-render,
+        // sehingga videoRef.current = null.
+        //
+        // Cukup:
+        //   1) simpan stream di ref
+        //   2) set cameraActive = true
+        //   3) biarkan useEffect di bawah yang memasang srcObject
+        //      setelah <video> benar-benar mount.
+        streamRef.current = stream;
+        setCameraActive(true);
+      } catch (err: unknown) {
+        // Bersihkan stream parsial kalau ada
+        if (streamRef.current) {
+          try {
+            streamRef.current.getTracks().forEach((t) => t.stop());
+          } catch {
+            /* ignore */
+          }
+          streamRef.current = null;
         }
+        setCameraActive(false);
+
+        const errorName =
+          typeof err === "object" && err !== null && "name" in err
+            ? String((err as { name: unknown }).name)
+            : "";
+
+        let msg = "Gagal membuka kamera";
+
+        switch (errorName) {
+          case "NotAllowedError":
+          case "PermissionDeniedError":
+            msg =
+              "Izin kamera ditolak. Buka ikon 🔒 di address bar → " +
+              "cari 'Kamera' → ubah ke 'Izinkan' → refresh halaman.";
+            break;
+          case "NotFoundError":
+          case "DevicesNotFoundError":
+            msg =
+              "Tidak ada kamera ditemukan di perangkat ini. " +
+              "Gunakan Impor dari Galeri sebagai alternatif.";
+            break;
+          case "NotReadableError":
+          case "TrackStartError":
+            msg =
+              "Kamera sedang dipakai aplikasi lain (Zoom/Meet/Teams, dsb). " +
+              "Tutup aplikasi tersebut lalu coba lagi.";
+            break;
+          case "OverconstrainedError":
+            msg =
+              "Kamera tidak mendukung resolusi yang diminta. " +
+              "Coba ganti kamera depan/belakang atau refresh halaman.";
+            break;
+          case "SecurityError":
+            msg =
+              "Akses kamera diblokir oleh kebijakan keamanan server. " +
+              "Hubungi admin untuk mengizinkan Permissions-Policy header.";
+            break;
+          case "AbortError":
+            msg = "Akses kamera dibatalkan. Coba lagi.";
+            break;
+          default:
+            msg =
+              (err instanceof Error && err.message) ||
+              "Gagal membuka kamera. Coba Impor dari Galeri.";
+        }
+
+        setCameraError(msg);
+        toast.error(msg, { duration: 8000 });
+      } finally {
+        startingRef.current = false;
       }
-      setCameraActive(true);
-    } catch (err: unknown) {
-      setCameraActive(false);
+    },
+    [cameraFacing, stopCamera],
+  );
 
-      const errorName =
-        typeof err === "object" && err !== null && "name" in err
-          ? String((err as { name: unknown }).name)
-          : "";
+  // =====================================================
+  // ⭐ ATTACH STREAM SETELAH <video> MOUNT
+  // useEffect berjalan setelah DOM commit, jadi saat
+  // cameraActive menjadi true, <video> sudah ada di DOM.
+  // =====================================================
+  useEffect(() => {
+    if (!cameraActive) return;
 
-      let msg = "Gagal membuka kamera";
+    const video = videoRef.current;
+    const stream = streamRef.current;
 
-      switch (errorName) {
-        case "NotAllowedError":
-        case "PermissionDeniedError":
-          msg =
-            "Izin kamera ditolak. Buka ikon 🔒 di address bar → " +
-            "cari 'Kamera' → ubah ke 'Izinkan' → refresh halaman.";
-          break;
-        case "NotFoundError":
-        case "DevicesNotFoundError":
-          msg =
-            "Tidak ada kamera ditemukan di perangkat ini. " +
-            "Gunakan Impor dari Galeri sebagai alternatif.";
-          break;
-        case "NotReadableError":
-        case "TrackStartError":
-          msg =
-            "Kamera sedang dipakai aplikasi lain (Zoom/Meet/Teams, dsb). " +
-            "Tutup aplikasi tersebut lalu coba lagi.";
-          break;
-        case "OverconstrainedError":
-          msg =
-            "Kamera tidak mendukung resolusi yang diminta. " +
-            "Coba ganti kamera depan/belakang atau refresh halaman.";
-          break;
-        case "SecurityError":
-          msg =
-            "Akses kamera diblokir oleh kebijakan keamanan server. " +
-            "Hubungi admin untuk mengizinkan Permissions-Policy header.";
-          break;
-        case "AbortError":
-          msg = "Akses kamera dibatalkan. Coba lagi.";
-          break;
-        default:
-          msg =
-            (err instanceof Error && err.message) ||
-            "Gagal membuka kamera. Coba Impor dari Galeri.";
-      }
+    if (!video || !stream) return;
 
-      setCameraError(msg);
-      toast.error(msg, { duration: 8000 });
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
     }
-  }, [cameraFacing]);
+
+    const playVideo = () => {
+      video.play().catch((err: unknown) => {
+        const name = err instanceof Error ? err.name : "";
+        // AbortError normal saat switch/unmount — jangan spam log
+        if (name !== "AbortError") {
+          console.warn("[scan] video.play gagal:", err);
+        }
+      });
+    };
+
+    if (video.readyState >= 1) {
+      playVideo();
+    } else {
+      video.onloadedmetadata = playVideo;
+    }
+
+    return () => {
+      video.onloadedmetadata = null;
+    };
+  }, [cameraActive]);
 
   // =====================================================
   // CLEANUP ON UNMOUNT
@@ -28704,25 +29240,38 @@ export function CamScannerView() {
   const capturePhoto = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
+
     if (!video || !canvas) return;
+
+    if (!streamRef.current) {
+      toast.error("Kamera belum aktif. Tunggu sebentar lalu coba lagi.");
+      return;
+    }
+
     if (video.readyState < 2) {
       toast.error("Kamera belum siap. Tunggu sebentar lalu coba lagi.");
       return;
     }
+
     const w = video.videoWidth;
     const h = video.videoHeight;
+
     if (w === 0 || h === 0) {
       toast.error("Kamera belum menampilkan gambar. Coba lagi.");
       return;
     }
+
     canvas.width = w;
     canvas.height = h;
+
     const ctx = canvas.getContext("2d");
     if (!ctx) {
       toast.error("Browser tidak mendukung Canvas 2D");
       return;
     }
+
     ctx.drawImage(video, 0, 0, w, h);
+
     canvas.toBlob(
       (blob) => {
         if (!blob) {
@@ -28807,7 +29356,6 @@ export function CamScannerView() {
         () => toast.error("Gagal hapus di server"),
       );
     }
-    // Revoke object URL untuk mencegah memory leak
     if (page?.url) {
       URL.revokeObjectURL(page.url);
     }
@@ -28837,11 +29385,10 @@ export function CamScannerView() {
       toast.error("Belum ada halaman");
       return;
     }
-    // Stop kamera untuk hemat resource
+
     stopCamera();
     setStep("edit");
 
-    // Create session if not yet
     if (!session) {
       try {
         const s = await createScanSession({
@@ -28852,7 +29399,6 @@ export function CamScannerView() {
         });
         setSession(s);
         toast.success("Sesi scan dibuat");
-        // Upload all pages
         await uploadAllPages(s.id);
       } catch (err: unknown) {
         const msg =
@@ -28867,7 +29413,6 @@ export function CamScannerView() {
   };
 
   const uploadAllPages = async (sessionId: string) => {
-    // Snapshot pages saat ini untuk upload
     const currentPages = pages;
     for (let i = 0; i < currentPages.length; i++) {
       const p = currentPages[i];
@@ -28934,14 +29479,13 @@ export function CamScannerView() {
         }
       }
     }
-    // Reorder kalau urutan berbeda
     const serverOrderIds = pages
       .filter((p) => p.serverPage)
       .map((p) => p.serverPage!.id);
     try {
       await reorderScanPages(session.id, serverOrderIds);
     } catch {
-      // silent — mungkin sudah benar
+      /* silent — mungkin sudah benar */
     }
   };
 
@@ -28971,7 +29515,6 @@ export function CamScannerView() {
         `Scan berhasil! Disimpan ke ${res.drive_email} (${res.folder_name})`,
         { duration: 6000 },
       );
-      // Cleanup object URLs sebelum redirect
       pages.forEach((p) => {
         if (p.url) URL.revokeObjectURL(p.url);
       });
@@ -28987,7 +29530,7 @@ export function CamScannerView() {
   };
 
   // =====================================================
-  // CLEANUP ON CLOSE
+  // CLOSE
   // =====================================================
   const handleClose = () => {
     pages.forEach((p) => {
@@ -29019,7 +29562,6 @@ export function CamScannerView() {
             </h1>
           </div>
 
-          {/* Step indicator */}
           <div className="ml-4 hidden items-center gap-1.5 text-[11px] font-semibold sm:flex">
             <StepBadge active={step === "capture"} done={step !== "capture"}>
               1. Capture
@@ -29057,18 +29599,24 @@ export function CamScannerView() {
               cameraError={cameraError}
               cameraFacing={cameraFacing}
               pages={pages}
-              startCamera={startCamera}
+              startCamera={() => {
+                void startCamera();
+              }}
               stopCamera={stopCamera}
               capturePhoto={capturePhoto}
               onImport={() => fileInputRef.current?.click()}
               onSwitchCamera={() => {
+                const next: Facing =
+                  cameraFacing === "environment" ? "user" : "environment";
+
+                // 1) stop stream lama
                 stopCamera();
-                setCameraFacing((f) =>
-                  f === "environment" ? "user" : "environment",
-                );
-                // Delay kecil sebelum restart untuk allow hardware release
+                // 2) simpan facing baru ke state (untuk UI label)
+                setCameraFacing(next);
+                // 3) delay kecil agar hardware kamera lama release,
+                //    lalu start dengan facing baru secara eksplisit
                 setTimeout(() => {
-                  void startCamera();
+                  void startCamera(next);
                 }, 300);
               }}
               onRemovePage={removePage}
@@ -29182,7 +29730,7 @@ function CaptureStep({
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   cameraActive: boolean;
   cameraError: string | null;
-  cameraFacing: "environment" | "user";
+  cameraFacing: Facing;
   pages: LocalPage[];
   startCamera: () => void;
   stopCamera: () => void;
@@ -29192,6 +29740,10 @@ function CaptureStep({
   onRemovePage: (id: string) => void;
   onNext: () => void;
 }) {
+  // stopCamera tidak dipakai langsung di sini (dipanggil dari parent),
+  // tapi tetap diterima untuk konsistensi API
+  void stopCamera;
+
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
       {/* CAMERA / PREVIEW */}
@@ -29263,7 +29815,7 @@ function CaptureStep({
             )}
           </div>
 
-          {/* Camera controls */}
+          {/* Camera controls — muncul HANYA kalau cameraActive */}
           {cameraActive && (
             <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2">
               <button
@@ -29283,7 +29835,9 @@ function CaptureStep({
               <button
                 onClick={onSwitchCamera}
                 className="grid h-10 w-10 place-items-center rounded-full bg-black/60 text-white backdrop-blur-sm hover:bg-black/80"
-                title={`Ganti ke ${cameraFacing === "environment" ? "depan" : "belakang"}`}
+                title={`Ganti ke ${
+                  cameraFacing === "environment" ? "depan" : "belakang"
+                }`}
               >
                 <RefreshCw size={16} />
               </button>
@@ -29648,6 +30202,9 @@ function ProcessStep({
   onBack: () => void;
   onProcess: () => void;
 }) {
+  // `session` disediakan untuk kompatibilitas, tidak dipakai langsung
+  void session;
+
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <div className="rounded-2xl border border-[var(--y-border)] bg-[var(--y-bg-elev)] p-5">
@@ -29807,7 +30364,6 @@ function filterToCss(filter: FilterType): string {
       return "none";
   }
 }
-
 
 
 ===== FILE: src/components/yudit/views/profile-view.tsx =====
@@ -40468,7 +41024,7 @@ export interface DocumentAssignment {
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 import type {
   DriveAccount,
@@ -40500,7 +41056,6 @@ import {
   ApiError,
 } from "@/lib/api/client";
 
-// ⭐ Folder API
 import {
   listFolders,
   listFilesInFolder,
@@ -40552,23 +41107,10 @@ export function defaultViewForRole(user: User | null): ViewKey {
   return isMember(user) ? "my-tasks" : "files";
 }
 
-// =====================================================
-// CAN ACCESS VIEW
-// ⭐ Semua role boleh akses scan (cam scanner)
-// ⭐ Hanya owner yang boleh akses transfer
-// =====================================================
 export function canAccessView(user: User | null, view: ViewKey): boolean {
   if (!user) return false;
-
-  // Member hanya bisa akses my-tasks khusus — bukan owner-only feature
   if (view === "my-tasks") return isMember(user);
-
-  // Transfer workspace — HANYA owner
   if (view === "transfer") return isOwner(user);
-
-  // Scan (cam scanner) — semua role boleh (member upload ke pool owner)
-  // Profile — semua role
-  // Files/Monthly/Stats/Convert/Drives/Collaborators — semua role
   return true;
 }
 
@@ -40579,6 +41121,8 @@ interface YuditState {
   isAuthenticated: boolean;
   user: User | null;
   authLoading: boolean;
+  /** Flag — sudah pernah memanggil bootstrapAuth? */
+  bootstrapped: boolean;
 
   currentView: ViewKey;
   sidebarOpen: boolean;
@@ -40590,7 +41134,6 @@ interface YuditState {
   defaultCategories: catApi.ApiCategory[];
   collaborators: Collaborator[];
 
-  // Folder state
   currentFolderId: string | null;
   folders: FolderItem[];
   folderBreadcrumb: BreadcrumbItem[];
@@ -40656,7 +41199,6 @@ interface YuditState {
   fetchCategories: () => Promise<void>;
   fetchCollaborators: () => Promise<void>;
 
-  // Folder actions
   fetchFolders: (parentId?: string | null) => Promise<void>;
   setCurrentFolderId: (folderId: string | null) => Promise<void>;
   refreshFolderFiles: () => Promise<void>;
@@ -40725,6 +41267,28 @@ interface YuditState {
 const EMPTY_POOL: PoolInfo = { total: 0, used: 0, free: 0, accounts: 0 };
 
 // =====================================================
+// ⭐ BACA currentView DARI URL
+// Dipakai saat first-load supaya store sinkron dengan URL
+// =====================================================
+function _viewFromUrl(): ViewKey | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get("view");
+    const valid: ViewKey[] = [
+      "files", "monthly", "stats", "drives", "convert",
+      "collaborators", "my-tasks", "profile", "scan", "transfer",
+    ];
+    if (v && (valid as string[]).includes(v)) {
+      return v as ViewKey;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+// =====================================================
 // STORE
 // =====================================================
 export const useYudit = create<YuditState>()(
@@ -40736,6 +41300,7 @@ export const useYudit = create<YuditState>()(
       isAuthenticated: false,
       user: null,
       authLoading: false,
+      bootstrapped: false,
 
       currentView: "files",
       sidebarOpen: false,
@@ -40781,32 +41346,59 @@ export const useYudit = create<YuditState>()(
       driveAuthError: { email: null, message: null, lastAt: null },
 
       // =====================================================
-      // AUTH
+      // ⭐ BOOTSTRAP AUTH — IDEMPOTENT & TIDAK OVERRIDE currentView
       // =====================================================
       bootstrapAuth: () => {
-        const token = getToken();
-        const user = getStoredUser<User>();
-        if (!token || !user) {
-          set({ isAuthenticated: false, user: null });
-          return;
-        }
-        if (!user.role) {
-          clearToken();
-          setStoredUser({ isAuthenticated: false, user: null });
-          toast("Data user tidak valid. Silakan login ulang.", "info");
+        // Kalau sudah pernah di-bootstrap, jangan reset apa-apa
+        if (get().bootstrapped) {
           return;
         }
 
-        const targetView = defaultViewForRole(user);
+        const token = getToken();
+        const user = getStoredUser<User>();
+
+        if (!token || !user) {
+          set({
+            isAuthenticated: false,
+            user: null,
+            bootstrapped: true,
+          });
+          return;
+        }
+
+        if (!user.role) {
+          clearToken();
+          set({
+            isAuthenticated: false,
+            user: null,
+            bootstrapped: true,
+          });
+          return;
+        }
+
+        // ⭐ Sinkron currentView dengan URL
+        // Kalau URL punya ?view=xxx, pakai itu.
+        // Kalau tidak ada, pakai nilai yang sudah ada (dari persist) atau default.
+        const urlView = _viewFromUrl();
+        let nextView: ViewKey = get().currentView;
+
+        if (urlView && canAccessView(user, urlView)) {
+          nextView = urlView;
+        } else if (!canAccessView(user, nextView)) {
+          nextView = defaultViewForRole(user);
+        }
+
         set({
           isAuthenticated: true,
           user,
-          currentView: canAccessView(user, get().currentView)
-            ? get().currentView
-            : targetView,
+          bootstrapped: true,
+          currentView: nextView,
         });
       },
 
+      // =====================================================
+      // LOGIN
+      // =====================================================
       login: async (email, password) => {
         set({ authLoading: true });
         try {
@@ -40833,6 +41425,7 @@ export const useYudit = create<YuditState>()(
             isAuthenticated: true,
             user,
             authLoading: false,
+            bootstrapped: true,
             currentView: defaultViewForRole(user),
             driveAuthError: { email: null, message: null, lastAt: null },
           });
@@ -40878,6 +41471,9 @@ export const useYudit = create<YuditState>()(
         }
       },
 
+      // =====================================================
+      // REGISTER
+      // =====================================================
       register: async (email, username, password) => {
         set({ authLoading: true });
         try {
@@ -40904,6 +41500,7 @@ export const useYudit = create<YuditState>()(
             isAuthenticated: true,
             user,
             authLoading: false,
+            bootstrapped: true,
             currentView: defaultViewForRole(user),
             driveAuthError: { email: null, message: null, lastAt: null },
           });
@@ -40919,11 +41516,15 @@ export const useYudit = create<YuditState>()(
         }
       },
 
+      // =====================================================
+      // LOGOUT
+      // =====================================================
       logout: () => {
         clearToken();
         set({
           isAuthenticated: false,
           user: null,
+          bootstrapped: false,   // reset supaya bisa bootstrap lagi setelah login
           currentView: "files",
           previewFileId: null,
           shareFileId: null,
@@ -40948,6 +41549,9 @@ export const useYudit = create<YuditState>()(
         toast("Logout berhasil", "info");
       },
 
+      // =====================================================
+      // CHANGE PASSWORD
+      // =====================================================
       changePassword: async (currentPassword, newPassword) => {
         try {
           await authApi.changePassword(currentPassword, newPassword);
@@ -40971,8 +41575,7 @@ export const useYudit = create<YuditState>()(
       },
 
       // =====================================================
-      // VIEWS
-      // ⭐ SPECIAL CASE: scan & transfer pakai route terpisah
+      // ⭐ SET VIEW — scan & transfer pakai route terpisah
       // =====================================================
       setView: (v) => {
         const user = get().user;
@@ -40983,7 +41586,7 @@ export const useYudit = create<YuditState>()(
           return;
         }
 
-        // ⭐ Cam Scanner adalah halaman full-screen terpisah
+        // Cam Scanner — halaman full-screen terpisah
         if (v === "scan") {
           set({ sidebarOpen: false });
           if (typeof window !== "undefined") {
@@ -40992,7 +41595,7 @@ export const useYudit = create<YuditState>()(
           return;
         }
 
-        // ⭐ Transfer Workspace adalah halaman terpisah
+        // Transfer Workspace — halaman terpisah
         if (v === "transfer") {
           set({ sidebarOpen: false });
           if (typeof window !== "undefined") {
@@ -41017,7 +41620,7 @@ export const useYudit = create<YuditState>()(
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
       // =====================================================
-      // DATA FETCH
+      // DATA FETCH (tidak diubah dari versi sebelumnya)
       // =====================================================
       fetchFiles: async (params) => {
         set({ filesLoading: true });
@@ -41101,9 +41704,6 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-      // =====================================================
-      // FOLDER ACTIONS
-      // =====================================================
       fetchFolders: async (parentId) => {
         set({ foldersLoading: true });
         try {
@@ -41191,9 +41791,6 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-      // =====================================================
-      // CONVERSION
-      // =====================================================
       fetchConversionOperations: async () => {
         try {
           const res = await convApi.listOperations();
@@ -41289,9 +41886,6 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-      // =====================================================
-      // DRIVES
-      // =====================================================
       refreshPool: async () => {
         try {
           const pool = await drivesApi.getPoolSummary();
@@ -41337,9 +41931,6 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-      // =====================================================
-      // FILES — uploadFiles dengan handling Drive auth error
-      // =====================================================
       uploadFiles: async (fileList, folderId) => {
         if (fileList.length === 0) return;
 
@@ -41375,7 +41966,6 @@ export const useYudit = create<YuditState>()(
             done++;
             toast(`"${file.name}" berhasil diunggah`, "success");
           } catch (e) {
-            // Handle Drive auth error spesifik
             if (e instanceof ApiError && e.status === 401) {
               driveAuthErrorCount++;
               const detail = e.detail || "";
@@ -41480,9 +42070,6 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-      // =====================================================
-      // FILTERS
-      // =====================================================
       setCategory: (cat) => {
         set({ currentCategory: cat });
         if (get().currentFolderId) return;
@@ -41534,9 +42121,6 @@ export const useYudit = create<YuditState>()(
 
       setFilterPanelOpen: (open) => set({ filterPanelOpen: open }),
 
-      // =====================================================
-      // MONTHLY
-      // =====================================================
       toggleMonthly: (key) =>
         set((s) => ({
           expandedMonthly: {
@@ -41554,9 +42138,6 @@ export const useYudit = create<YuditState>()(
         set({ expandedMonthly: out });
       },
 
-      // =====================================================
-      // MODALS
-      // =====================================================
       openPreview: (id) => set({ previewFileId: id }),
       closePreview: () => set({ previewFileId: null }),
       openShare: (id) => set({ shareFileId: id }),
@@ -41627,9 +42208,6 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-      // =====================================================
-      // ASSIGN
-      // =====================================================
       openAssignModal: (fileId) => {
         if (!canManageWorkspace(get().user)) {
           toast("Hanya owner atau super admin yang bisa assign", "error");
@@ -41641,17 +42219,11 @@ export const useYudit = create<YuditState>()(
       closeAssignModal: () =>
         set({ assignModalOpen: false, assignModalFileId: null }),
 
-      // =====================================================
-      // EDITOR
-      // =====================================================
       openEditor: (fileId, mode = "local") =>
         set({ editorState: { fileId, mode } }),
 
       closeEditor: () => set({ editorState: null }),
 
-      // =====================================================
-      // CATEGORIES
-      // =====================================================
       setCategoryManagerOpen: (open) => {
         if (open && !canManageWorkspace(get().user)) {
           toast(
@@ -41696,9 +42268,6 @@ export const useYudit = create<YuditState>()(
         }
       },
 
-      // =====================================================
-      // UI
-      // =====================================================
       showConfirm: (title, text, onConfirm) =>
         set({ confirmDialog: { open: true, title, text, onConfirm } }),
 
@@ -41717,9 +42286,6 @@ export const useYudit = create<YuditState>()(
       hideProgress: () =>
         set((s) => ({ progress: { ...s.progress, open: false } })),
 
-      // =====================================================
-      // DRIVE AUTH ERROR
-      // =====================================================
       setDriveAuthError: (email, message) =>
         set({
           driveAuthError: {
@@ -41736,11 +42302,23 @@ export const useYudit = create<YuditState>()(
     }),
     {
       name: "yudit-cloud-store",
+      // ⭐ PERSIST isAuthenticated, user, currentView
+      // Ini kunci supaya /scan dan /transfer tahu sesi SEBELUM render
       partialize: (s) => ({
+        isAuthenticated: s.isAuthenticated,
+        user: s.user,
         currentView: s.currentView,
         filters: s.filters,
         expandedMonthly: s.expandedMonthly,
       }),
+      // ⭐ Hydration callback: setelah localStorage dibaca,
+      // set bootstrapped=true kalau ada token.
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        if (state.isAuthenticated && state.user && getToken()) {
+          state.bootstrapped = true;
+        }
+      },
     },
   ),
 );
@@ -41812,6 +42390,7 @@ if (typeof window !== "undefined") {
     }
   }) as EventListener);
 }
+
 
 
 ===== FILE: src/lib/api/oauth.ts =====
@@ -42482,8 +43061,13 @@ export async function getShareInfo(token: string): Promise<ShareInfo> {
 import { api } from "./client";
 
 export type TransferStatus =
-  | "pending" | "verified" | "executing" | "completed"
-  | "failed" | "cancelled" | "expired";
+  | "pending"
+  | "verified"
+  | "executing"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "expired";
 
 export interface Transfer {
   id: string;
@@ -42544,7 +43128,6 @@ export async function executeTransfer(transferId: string): Promise<{
 }> {
   const { data } = await api.post("/transfer/execute", {
     transfer_id: transferId,
-    code: "-", // dummy — backend abaikan
   });
   return data;
 }
@@ -42566,6 +43149,7 @@ export async function getTransferDetail(id: string): Promise<Transfer> {
   const { data } = await api.get(`/transfer/${id}`);
   return data;
 }
+
 
 
 ===== FILE: src/lib/api/assignments.ts =====
@@ -44185,6 +44769,8 @@ kp-frnt/
 │   │   │   ├── 📄 toggle.tsx
 │   │   │   └── 📄 tooltip.tsx
 │   │   └── 📁 yudit
+│   │       ├── 📁 auth
+│   │       │   └── 📄 require-auth.tsx
 │   │       ├── 📁 editor
 │   │       │   ├── 📄 doc-editor.tsx
 │   │       │   ├── 📄 doc-preview-viewer.tsx
