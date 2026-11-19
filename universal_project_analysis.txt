@@ -2,7 +2,7 @@
 
 PROJECT:
 kp-frnt
-
+haha
 DETECTED ARCHITECTURE:
 - Vercel
 - FastAPI
